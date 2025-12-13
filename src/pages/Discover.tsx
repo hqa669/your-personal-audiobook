@@ -37,7 +37,7 @@ export default function Discover() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header isLoggedIn onLogout={() => navigate('/')} />
+      <Header />
 
       <main className="container max-w-6xl mx-auto px-4 py-8">
         {/* Header */}

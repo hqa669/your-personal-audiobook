@@ -271,24 +271,26 @@ create policy "Users can upload covers"
 
 ---
 
-## Phase 3: Authentication
+## Phase 3: Authentication ✅ COMPLETE
 
-### 3.1 Implement Auth Flow
-- [ ] Update `Auth.tsx` with working Supabase auth
-- [ ] Email/password signup with `emailRedirectTo`
-- [ ] Email/password login
-- [ ] Add Google OAuth button (optional for MVP)
-- [ ] Create auth context/hook for session management
-- [ ] Implement `onAuthStateChange` listener
-- [ ] Add logout functionality to Header
+### 3.1 Implement Auth Flow ✅
+- [x] Update `Auth.tsx` with working Supabase auth
+- [x] Email/password signup with `emailRedirectTo`
+- [x] Email/password login
+- [x] Create auth context/hook for session management
+- [x] Implement `onAuthStateChange` listener
+- [x] Add logout functionality to Header
+- [x] Form validation with Zod
 
-### 3.2 Protected Routes
-- [ ] Create `ProtectedRoute` component
-- [ ] Wrap `/library`, `/reader/:bookId` routes
-- [ ] Redirect unauthenticated users to `/auth`
-- [ ] Update Header to show user state
+### 3.2 Protected Routes ✅
+- [x] Create `ProtectedRoute` component
+- [x] Wrap `/library`, `/reader/:bookId`, `/discover` routes
+- [x] Redirect unauthenticated users to `/auth`
+- [x] Update Header to show user state
 
-**Reference file:** `src/pages/Auth.tsx`
+**Files created:**
+- `src/contexts/AuthContext.tsx`
+- `src/components/ProtectedRoute.tsx`
 
 ---
 
@@ -487,8 +489,8 @@ create policy "Users can upload covers"
 |-------|--------|-------|
 | Phase 1: Setup | ✅ Complete | Core UI scaffolded |
 | Phase 2: Cloud | ✅ Complete | Database schema + storage buckets created |
-| Phase 3: Auth | 🔄 Next | Implement auth flow |
-| Phase 4: Upload | ⏳ Pending | Depends on Phase 3 |
+| Phase 3: Auth | ✅ Complete | Auth context, protected routes, login/signup |
+| Phase 4: Upload | 🔄 Next | EPUB upload flow |
 | Phase 5: TTS | ⏳ Pending | Need RunPod API key |
 | Phase 6: Reader | ⏳ Pending | Partial UI exists |
 | Phase 7: Discovery | ⏳ Pending | Partial UI exists |

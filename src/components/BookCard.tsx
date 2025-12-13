@@ -64,18 +64,14 @@ export function BookCard({ book, onClick, showStatus = false, className }: BookC
         {/* Status indicator */}
         {showStatus && book.status && (
           <div className="absolute top-2 right-2">
-            {book.status === 'ready' && (
+            {/* 'uploaded' and 'ready' both show play icon (readable) */}
+            {(book.status === 'ready' || book.status === 'uploaded') && (
               <div className="bg-success text-success-foreground p-1.5 rounded-full shadow-sm">
                 <Play className="w-3 h-3" />
               </div>
             )}
             {book.status === 'processing' && (
               <div className="bg-amber-500 text-white p-1.5 rounded-full shadow-sm">
-                <Loader2 className="w-3 h-3 animate-spin" />
-              </div>
-            )}
-            {book.status === 'uploaded' && (
-              <div className="bg-blue-500 text-white p-1.5 rounded-full shadow-sm">
                 <Loader2 className="w-3 h-3 animate-spin" />
               </div>
             )}
@@ -90,7 +86,7 @@ export function BookCard({ book, onClick, showStatus = false, className }: BookC
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors duration-300 flex items-center justify-center">
           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            {showStatus && book.status === 'ready' ? (
+            {showStatus && (book.status === 'ready' || book.status === 'uploaded') ? (
               <Play className="w-8 h-8 text-white drop-shadow-lg" />
             ) : !showStatus ? (
               <Plus className="w-8 h-8 text-foreground/80" />

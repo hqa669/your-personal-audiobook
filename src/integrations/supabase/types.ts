@@ -14,7 +14,169 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audio_tracks: {
+        Row: {
+          audio_url: string
+          book_id: string
+          duration_seconds: number | null
+          generated_at: string
+          id: string
+          voice_type: string | null
+        }
+        Insert: {
+          audio_url: string
+          book_id: string
+          duration_seconds?: number | null
+          generated_at?: string
+          id?: string
+          voice_type?: string | null
+        }
+        Update: {
+          audio_url?: string
+          book_id?: string
+          duration_seconds?: number | null
+          generated_at?: string
+          id?: string
+          voice_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audio_tracks_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      books: {
+        Row: {
+          author: string | null
+          cover_url: string | null
+          created_at: string
+          epub_url: string
+          id: string
+          status: Database["public"]["Enums"]["book_status"]
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          author?: string | null
+          cover_url?: string | null
+          created_at?: string
+          epub_url: string
+          id?: string
+          status?: Database["public"]["Enums"]["book_status"]
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          author?: string | null
+          cover_url?: string | null
+          created_at?: string
+          epub_url?: string
+          id?: string
+          status?: Database["public"]["Enums"]["book_status"]
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      playback_progress: {
+        Row: {
+          book_id: string
+          chapter_index: number | null
+          id: string
+          position_seconds: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          chapter_index?: number | null
+          id?: string
+          position_seconds?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          book_id?: string
+          chapter_index?: number | null
+          id?: string
+          position_seconds?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playback_progress_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      public_books: {
+        Row: {
+          author: string | null
+          cover_url: string | null
+          created_at: string
+          description: string | null
+          epub_url: string
+          genre: string | null
+          id: string
+          title: string
+        }
+        Insert: {
+          author?: string | null
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          epub_url: string
+          genre?: string | null
+          id?: string
+          title: string
+        }
+        Update: {
+          author?: string | null
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          epub_url?: string
+          genre?: string | null
+          id?: string
+          title?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +185,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      book_status: "uploaded" | "processing" | "ready" | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +312,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      book_status: ["uploaded", "processing", "ready", "failed"],
+    },
   },
 } as const

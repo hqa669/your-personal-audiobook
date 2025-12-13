@@ -1,127 +1,120 @@
-## 📌 30-Second Elevator Pitch
+## masterplan.md
 
-BookMine transforms any EPUB into a soothing, AI-narrated audiobook—free from Audible or Amazon restrictions. Upload your library, press play, and enjoy immersive, high-quality audio in a calm, cozy reading space.
-
----
-
-## 🧩 Problem & Mission
-
-- **Problem**: Most audiobook platforms lock users into costly ecosystems (Audible, Speechify) with limited personalization and ownership.
-- **Mission**: Empower people to listen to *their own* books, beautifully voiced by AI, in a quiet, intelligent interface that respects attention and autonomy.
+### 🎧 Elevator Pitch
+BookMine turns any EPUB you own into a high-quality, AI-narrated audiobook. Just upload, press play, and enjoy—no subscriptions, no gatekeeping.
 
 ---
 
-## 🎯 Target Audience
-
-- Busy listeners (commuters, multitaskers, parents)
-- Students and lifelong learners (studying with classics or PDFs)
-- Readers seeking privacy-friendly, cost-free alternatives to Audible
+### 🔍 Problem & Mission
+Most audiobook platforms are locked behind pricey memberships and limited catalogs. BookMine empowers readers to enjoy *their own* books in audio form—free, beautiful, and frictionless.
 
 ---
 
-## 🔑 Core Features
+### 🎯 Target Audience
 
-- **Upload Your EPUBs** — Bring your own books; no purchases required
-- **AI Audiobook Generator** — High-quality TTS via RunPod, triggered on-demand
-- **Dual-Mode Reader** — Read and listen in sync, with adjustable fonts and audio speed
-- **Book Library UI** — Serene shelf interface to browse, play, or continue listening
-- **Free Classics Discovery** — Access a curated set of public-domain titles
-- **Personal AI Voice Companion (Optional)** — Calm suggestions, summaries, or reminders
+- **Audiobook lovers** tired of Audible’s ecosystem
+- **Students and lifelong learners** converting study material to audio
+- **Busy people** who prefer listening while commuting or multitasking
+- **Public domain fans** discovering free classics in a new format
 
 ---
 
-## 🛠 Tech Stack & Rationale
+### 🧩 Core Features
 
-- **Frontend**: Vite + TypeScript + React + Tailwind + shadcn/ui  
-  → Fast, composable, and ideal for custom UI with warm interactions
+- **Upload & Convert EPUBs** → Private library, voice-ready on demand
+- **Dual Reading Mode** → Read and/or listen with sync, auto-scroll, and speed controls
+- **Beautiful Library Interface** → Horizontal shelves, cozy cover art, clear book status
+- **Free Book Discovery** → Explore classics by genre/author, no login required
+- **RunPod AI Voice Generation** → Triggered manually via modal
+- **Calm Audiobook UX** → Smart playback, resume, and progress memory
 
-- **Backend**: Supabase (DB, Auth, Storage, Edge Functions)  
-  → Scalable, real-time backend with great DX and native RunPod support
+---
 
-- **AI Voice**: RunPod serverless (Python-based TTS)  
-  → Affordable, fast, and customizable voice pipeline
+### ⚙️ High-Level Tech Stack
 
+- **Frontend**: Vite + React + TypeScript + Tailwind + shadcn/ui  
+  → Fast, modular, and easy to theme for a cozy UI  
+- **Backend/Storage**: Supabase  
+  → Handles auth, DB, file storage, and Edge Functions for RunPod calls  
+- **AI Voice API**: RunPod (Python-based TTS)  
+  → Efficient, scalable voice generation triggered on user tap  
+- **Auth**: Supabase Auth (Email, Google, Apple)  
+  → Low-friction login; Apple for mobile users  
 - **Storage**: Lovable Cloud  
-  → Built for emotional UX and privacy-first file handling
-
-- **Auth**: Email + Google + Apple  
-  → Simple, user-friendly login with flexible identity support
+  → Optimized for security and media storage  
 
 ---
 
-## 🧱 Conceptual Data Model (in words)
+### 🗃 Conceptual Data Model (ERD in words)
 
-- **User**  
-  → Has many `Books`  
-  → Can trigger `VoiceJobs` (TTS generations)
-
-- **Book**  
-  → Belongs to a `User`  
-  → Stores EPUB file, cover image, metadata (title, author)  
-  → Has many `AudioChapters` (linked audio segments)
-
-- **VoiceJob**  
-  → Tied to a `Book`  
-  → Tracks status (pending, generating, ready)
-
-- **AudioChapter**  
-  → Linked to a specific `Book`  
-  → Stores audio file URL and transcript reference
+- **User**
+  - id, email, name, auth provider
+- **Book**
+  - id, user_id (FK), title, author, cover_url, epub_url, status, created_at
+- **AudioTrack**
+  - id, book_id (FK), audio_url, duration, voice_type, generated_at
+- **PlaybackProgress**
+  - id, user_id (FK), book_id (FK), last_position_seconds, updated_at
+- **PublicBook**
+  - id, title, author, genre, epub_url, cover_url (for discovery page)
 
 ---
 
-## 🎨 UI Design Principles
+### 🧠 UI Design Principles (Krug-aligned)
 
-- **Start with emotion**: Feels like a cozy reading nook—warm, focused, and personal
-- **Text + audio symmetry**: Balanced layout for listening and reading
-- **Gentle motion**: Page-like modals, subtle feedback on actions
-- **Microcopy with care**: Encouraging, non-pushy voice (“We saved your spot”)
-- **Respectful pacing**: No aggressive CTAs or clutter; calm flow through the app
-
----
-
-## 🔐 Security & Compliance Notes
-
-- Store user EPUBs securely in Lovable Cloud (private by default)
-- Audio jobs scoped per user to avoid data leaks
-- Use Supabase Row Level Security (RLS) for strict access control
-- Respect privacy by not indexing or scanning book contents unless triggered
+- **Don’t Make Me Think**: Everything feels obvious (Upload → Play)
+- **Scenes Not Screens**: Reader page adapts to “reading” or “listening”
+- **Emotional Intent First**: Cozy, kind, non-judgmental UI
+- **Soft Transitions**: Modals slide in, pages flip—no abruptness
+- **Microcopy Reassures**: “Your next listen is ready.” instead of "TTS complete."
 
 ---
 
-## 🛣 Roadmap (Phased)
+### 🔐 Security & Compliance
 
-### MVP
-- Upload EPUB → Generate AI audio → Listen in dual-mode reader
-- Book library UI + Free classic discovery page
-- Basic email login
-
-### V1
-- OAuth (Google, Apple), smarter TTS error handling
-- Personal AI Voice Companion (basic recommendations)
-- Book sync + resume across devices
-- Mobile-first optimizations
-
-### V2
-- Bookmarking, note-taking, and highlight syncing
-- Social book sharing or “send to friend” feature
-- Voice customization / voice library selection
+- All uploaded books are **private by default**
+- Supabase RLS rules prevent cross-user access
+- Optional encryption for user-stored files
+- RunPod voice generation uses only temp file access (auto-deletes after)
+- Compliant with GDPR and CCPA for deletion and data export
 
 ---
 
-## ⚠️ Risks & Mitigations
+### 🚀 Roadmap
 
-- **RunPod TTS latency** → Use status polling + gentle UX (“Generating...”)  
-- **EPUB parsing inconsistencies** → Pre-process on upload and validate structure  
-- **User uploads of copyrighted books** → Clear ToS; optional DRM flag; explore fingerprinting
+#### 🥇 MVP (Launch-Ready)
+- Upload EPUB → Generate AI Voice → Listen
+- Text/audio dual mode with basic controls
+- Free book discovery
+- Basic auth (email, Google)
+- Public domain starter library
+
+#### 🥈 V1
+- Resume playback across devices
+- Smarter status system (e.g. “Ready soon…” with ETA)
+- AI voice summaries (“Continue from last chapter?”)
+- Pagination for discovery
+
+#### 🥉 V2
+- Voice picker (tone, gender, narrator type)
+- Book playlists or reading queue
+- Offline listening (PWA / mobile optimization)
+- Custom bookmark notes
 
 ---
 
-## 🚀 Future Expansion Ideas
+### ⚠️ Risks & Mitigations
 
-- Whisper-powered audiobook transcription
-- Smart chapter summaries or audio bookmarks
-- Multi-language TTS (French, Spanish, etc.)
-- Chrome extension: “Listen to any webpage”
-- Community-curated book playlists (e.g., “Best Rainy Day Reads”)
+- **Large EPUB files** → Size limit + pre-validation
+- **TTS latency** → Show clear progress & pre-generation tips
+- **Privacy concerns** → Transparent data handling + opt-in voice generation
+- **RunPod downtime** → Fallback queueing system + retries
 
+---
+
+### 🌱 Future Expansion
+
+- Personal “listening journals” with reading stats
+- AI-summarized highlights or discussion questions
+- Community features (shared libraries, read-alongs)
+- Companion mobile app (offline mode, sync playback)

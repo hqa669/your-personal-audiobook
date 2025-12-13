@@ -363,18 +363,18 @@ create policy "Users can upload covers"
 
 ---
 
-## Phase 6: Reader Page
+## Phase 6: Reader Page ✅ COMPLETE
 
-### 6.1 Text Mode
-- [ ] Fetch book content from EPUB
-- [ ] Chapter navigation (previous/next)
-- [ ] Chapter list dropdown
-- [ ] Font size adjustment
-- [ ] Dark/light mode toggle (already exists)
-- [ ] Progress slider
-- [ ] Save reading progress to `playback_progress`
+### 6.1 Text Mode ✅
+- [x] Fetch book content from EPUB
+- [x] Chapter navigation (previous/next)
+- [x] Chapter list dropdown (sheet)
+- [x] Font size adjustment
+- [x] Dark/light mode toggle (already exists)
+- [x] Progress slider
+- [x] Save reading progress to `playback_progress`
 
-### 6.2 Audio Mode
+### 6.2 Audio Mode (Pending Phase 5)
 - [ ] Fetch audio track for book
 - [ ] Audio player with play/pause
 - [ ] Playback speed control (0.5x, 1x, 1.25x, 1.5x, 2x)
@@ -382,10 +382,15 @@ create policy "Users can upload covers"
 - [ ] Auto-save playback position
 - [ ] Resume from last position
 
-### 6.3 Dual Mode
+### 6.3 Dual Mode (Pending Phase 5)
 - [ ] Text + audio synchronized view
 - [ ] Auto-scroll text with audio (optional)
 - [ ] Visual indicator of current section
+
+**Files created:**
+- `src/lib/epub-chapter-parser.ts` - EPUB chapter extraction
+- `src/hooks/useBookReader.ts` - Book reader state management
+- `src/components/ChapterListSheet.tsx` - Chapter navigation sheet
 
 **Reference file:** `src/pages/Reader.tsx`
 

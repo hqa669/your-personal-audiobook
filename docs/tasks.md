@@ -21,6 +21,7 @@
 ### 1.1 Project Initialization ✅
 - [x] Initialize Vite + React + TypeScript
 - [x] Add Tailwind CSS + shadcn/ui
+- [x] Enable Lovable Cloud
 - [x] Configure routing (`/`, `/library`, `/reader/:bookId`, `/discover`, `/auth`)
 - [x] Install fonts: `@fontsource/dm-serif-display`, `@fontsource/inter`
 - [x] Install `framer-motion` for animations
@@ -44,14 +45,14 @@
 
 ---
 
-## Phase 2: Lovable Cloud Integration 🔄 IN PROGRESS
+## Phase 2: Lovable Cloud Integration ✅ COMPLETE
 
-### 2.1 Enable Lovable Cloud
-- [ ] Enable Lovable Cloud for backend functionality
-- [ ] Verify Supabase project is connected
+### 2.1 Enable Lovable Cloud ✅
+- [x] Enable Lovable Cloud for backend functionality
+- [x] Configure auto-confirm email signups
 
-### 2.2 Database Schema
-Create the following tables via SQL migrations:
+### 2.2 Database Schema ✅
+All tables created with RLS policies:
 
 #### `profiles` table
 ```sql
@@ -485,8 +486,8 @@ create policy "Users can upload covers"
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Phase 1: Setup | ✅ Complete | Core UI scaffolded |
-| Phase 2: Cloud | 🔄 Next | Need to enable Lovable Cloud |
-| Phase 3: Auth | ⏳ Pending | Depends on Phase 2 |
+| Phase 2: Cloud | ✅ Complete | Database schema + storage buckets created |
+| Phase 3: Auth | 🔄 Next | Implement auth flow |
 | Phase 4: Upload | ⏳ Pending | Depends on Phase 3 |
 | Phase 5: TTS | ⏳ Pending | Need RunPod API key |
 | Phase 6: Reader | ⏳ Pending | Partial UI exists |

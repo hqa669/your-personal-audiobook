@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -9,13 +9,16 @@ import {
   SkipForward, 
   Sun, 
   Moon, 
-  List, 
   Type,
-  Volume2
+  Volume2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { userLibrary, sampleChapterText } from '@/data/books';
+import { useBookReader } from '@/hooks/useBookReader';
+import { ChapterListSheet } from '@/components/ChapterListSheet';
 import { cn } from '@/lib/utils';
 
 export default function Reader() {
@@ -25,15 +28,53 @@ export default function Reader() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [fontSize, setFontSize] = useState(18);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [progress, setProgress] = useState(25);
   const [showControls, setShowControls] = useState(true);
 
-  const book = userLibrary.find(b => b.id === id) || {
-    title: 'Pride and Prejudice',
-    author: 'Jane Austen',
-  };
+  const {
+    book,
+    parsedBook,
+    currentChapter,
+    chapterIndex,
+    totalChapters,
+    isLoading,
+    error,
+    goToChapter,
+    nextChapter,
+    prevChapter,
+    hasNext,
+    hasPrev,
+  } = useBookReader(id);
 
   const speeds = [0.75, 1, 1.25, 1.5, 2];
+
+  // Calculate reading progress percentage
+  const progressPercent = totalChapters > 0 
+    ? Math.round((chapterIndex / (totalChapters - 1)) * 100) 
+    : 0;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading your book...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !book) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <p className="text-destructive">{error || 'Book not found'}</p>
+          <Button onClick={() => navigate('/library')}>
+            Back to Library
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn(
@@ -56,8 +97,11 @@ export default function Reader() {
               <Button variant="ghost" size="icon" onClick={() => navigate('/library')}>
                 <ArrowLeft className="w-5 h-5" />
               </Button>
-              <div className="text-center">
-                <h1 className="font-serif text-sm font-medium truncate max-w-48">{book.title}</h1>
+              <div className="text-center flex-1 mx-4">
+                <h1 className="font-serif text-sm font-medium truncate">{book.title}</h1>
+                <p className="text-xs text-muted-foreground truncate">
+                  {currentChapter?.title || `Chapter ${chapterIndex + 1}`}
+                </p>
               </div>
               <div className="flex items-center gap-1">
                 <Button
@@ -75,28 +119,78 @@ export default function Reader() {
 
       {/* Main content */}
       <main 
-        className="container max-w-2xl mx-auto px-6 py-20 cursor-pointer"
+        className="container max-w-2xl mx-auto px-6 py-20 cursor-pointer min-h-screen"
         onClick={() => setShowControls(!showControls)}
       >
-        <article 
-          className="prose prose-lg max-w-none leading-relaxed"
-          style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
-        >
-          {sampleChapterText.split('\n\n').filter(p => p.trim()).map((paragraph, index) => (
-            <motion.p
-              key={index}
-              initial={{ opacity: 0.3 }}
+        {currentChapter ? (
+          <article 
+            className="prose prose-lg max-w-none leading-relaxed"
+            style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
+          >
+            {/* Chapter title */}
+            <motion.h2
+              initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: index * 0.05, duration: 0.3 }}
               className={cn(
-                "mb-6",
-                isDarkMode ? "text-slate-200" : "text-foreground/90"
+                "font-serif text-2xl mb-8 text-center",
+                isDarkMode ? "text-slate-100" : "text-foreground"
               )}
             >
-              {paragraph}
-            </motion.p>
-          ))}
-        </article>
+              {currentChapter.title}
+            </motion.h2>
+            
+            {/* Chapter content */}
+            {currentChapter.content.split('\n\n').filter(p => p.trim()).map((paragraph, index) => (
+              <motion.p
+                key={index}
+                initial={{ opacity: 0.3 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: Math.min(index * 0.02, 0.5), duration: 0.3 }}
+                className={cn(
+                  "mb-6",
+                  isDarkMode ? "text-slate-200" : "text-foreground/90"
+                )}
+              >
+                {paragraph}
+              </motion.p>
+            ))}
+            
+            {/* Chapter navigation at bottom */}
+            <div className="flex justify-between items-center mt-12 pt-8 border-t border-border/50">
+              <Button
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  prevChapter();
+                }}
+                disabled={!hasPrev}
+                className="gap-2"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                {chapterIndex + 1} of {totalChapters}
+              </span>
+              <Button
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nextChapter();
+                }}
+                disabled={!hasNext}
+                className="gap-2"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </article>
+        ) : (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        )}
       </main>
 
       {/* Bottom controls */}
@@ -114,23 +208,70 @@ export default function Reader() {
             <div className="container max-w-2xl mx-auto px-4 py-4 space-y-4">
               {/* Progress slider */}
               <div className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground w-10">2:45</span>
+                <span className="text-xs text-muted-foreground w-10">Ch {chapterIndex + 1}</span>
                 <Slider
-                  value={[progress]}
-                  onValueChange={(value) => setProgress(value[0])}
+                  value={[progressPercent]}
+                  onValueChange={(value) => {
+                    const newIndex = Math.round((value[0] / 100) * (totalChapters - 1));
+                    goToChapter(newIndex);
+                  }}
                   max={100}
                   step={1}
                   className="flex-1"
                 />
-                <span className="text-xs text-muted-foreground w-10">10:30</span>
+                <span className="text-xs text-muted-foreground w-10">{totalChapters}</span>
               </div>
 
               {/* Audio controls */}
               <div className="flex items-center justify-between">
                 {/* Left - Chapter & Display */}
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="w-10 h-10">
-                    <List className="w-4 h-4" />
+                  {parsedBook && (
+                    <ChapterListSheet
+                      chapters={parsedBook.chapters}
+                      currentIndex={chapterIndex}
+                      onSelectChapter={goToChapter}
+                      isDarkMode={isDarkMode}
+                    />
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="w-10 h-10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFontSize(prev => {
+                        const newSize = prev >= 28 ? 14 : prev + 2;
+                        return newSize;
+                      });
+                    }}
+                  >
+                    <Type className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {/* Center - Play controls (disabled until Phase 5) */}
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="w-10 h-10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      prevChapter();
+                    }}
+                    disabled={!hasPrev}
+                  >
+                    <SkipBack className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="warm"
+                    size="icon"
+                    className="w-14 h-14 rounded-full opacity-50 cursor-not-allowed"
+                    disabled
+                    title="Audio coming soon"
+                  >
+                    <Play className="w-6 h-6 ml-0.5" />
                   </Button>
                   <Button 
                     variant="ghost" 
@@ -138,54 +279,30 @@ export default function Reader() {
                     className="w-10 h-10"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setFontSize(prev => Math.min(prev + 2, 28));
+                      nextChapter();
                     }}
+                    disabled={!hasNext}
                   >
-                    <Type className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Center - Play controls */}
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="w-10 h-10">
-                    <SkipBack className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="warm"
-                    size="icon"
-                    className="w-14 h-14 rounded-full"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsPlaying(!isPlaying);
-                    }}
-                  >
-                    {isPlaying ? (
-                      <Pause className="w-6 h-6" />
-                    ) : (
-                      <Play className="w-6 h-6 ml-0.5" />
-                    )}
-                  </Button>
-                  <Button variant="ghost" size="icon" className="w-10 h-10">
                     <SkipForward className="w-4 h-4" />
                   </Button>
                 </div>
 
-                {/* Right - Speed & Voice */}
+                {/* Right - Speed & Voice (disabled until Phase 5) */}
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs px-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const currentIndex = speeds.indexOf(playbackSpeed);
-                      const nextIndex = (currentIndex + 1) % speeds.length;
-                      setPlaybackSpeed(speeds[nextIndex]);
-                    }}
+                    className="text-xs px-2 opacity-50"
+                    disabled
                   >
                     {playbackSpeed}x
                   </Button>
-                  <Button variant="ghost" size="icon" className="w-10 h-10">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="w-10 h-10 opacity-50"
+                    disabled
+                  >
                     <Volume2 className="w-4 h-4" />
                   </Button>
                 </div>

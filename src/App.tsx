@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Library from "./pages/Library";
@@ -18,15 +20,38 @@ const App = () => (
       <Toaster />
       <Sonner position="top-center" />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/library" element={<Library />} />
-          <Route path="/discover" element={<Discover />} />
-          <Route path="/reader/:id" element={<Reader />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route 
+              path="/library" 
+              element={
+                <ProtectedRoute>
+                  <Library />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/discover" 
+              element={
+                <ProtectedRoute>
+                  <Discover />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/reader/:id" 
+              element={
+                <ProtectedRoute>
+                  <Reader />
+                </ProtectedRoute>
+              } 
+            />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

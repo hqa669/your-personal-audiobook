@@ -1,15 +1,18 @@
 import { Link, useLocation } from 'react-router-dom';
-import { User, LogOut, BookOpen } from 'lucide-react';
+import { User, LogOut, BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
-interface HeaderProps {
-  isLoggedIn?: boolean;
-  onLogout?: () => void;
-}
-
-export function Header({ isLoggedIn = false, onLogout }: HeaderProps) {
+export function Header() {
   const location = useLocation();
+  const { user, isLoading, signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    toast.success('You have been signed out');
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border/50">
@@ -22,7 +25,7 @@ export function Header({ isLoggedIn = false, onLogout }: HeaderProps) {
 
         {/* Navigation */}
         <nav className="hidden md:flex items-center gap-6">
-          {isLoggedIn && (
+          {user && (
             <>
               <Link
                 to="/library"
@@ -48,14 +51,16 @@ export function Header({ isLoggedIn = false, onLogout }: HeaderProps) {
 
         {/* Auth buttons */}
         <div className="flex items-center gap-3">
-          {isLoggedIn ? (
+          {isLoading ? (
+            <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+          ) : user ? (
             <>
               <Button variant="ghost" size="icon" asChild>
                 <Link to="/library">
                   <User className="w-5 h-5" />
                 </Link>
               </Button>
-              <Button variant="ghost" size="sm" onClick={onLogout} className="gap-2">
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
                 <LogOut className="w-4 h-4" />
                 <span className="hidden md:inline">Log out</span>
               </Button>

@@ -1,44 +1,47 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Plus, ChevronRight } from 'lucide-react';
+import { Search, Plus, ChevronRight, Loader2, BookOpen } from 'lucide-react';
 import { Header } from '@/components/Header';
-import { BookCard, AddBookCard } from '@/components/BookCard';
+import { BookCard, LegacyBookCard, AddBookCard } from '@/components/BookCard';
 import { BookDetailModal } from '@/components/BookDetailModal';
+import { UploadBookModal } from '@/components/UploadBookModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { userLibrary, freeBooks, Book } from '@/data/books';
+import { freeBooks, Book } from '@/data/books';
+import { useBooks } from '@/hooks/useBooks';
 import { toast } from 'sonner';
 
 export default function Library() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const [myBooks, setMyBooks] = useState(userLibrary);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  
+  const { books, isLoading, isUploading, uploadProgress, uploadBook } = useBooks();
 
-  const handleAddToLibrary = (book: Book) => {
-    const newBook = { ...book, status: 'processing' as const, progress: 0 };
-    setMyBooks(prev => [...prev, newBook]);
-    toast.success(`"${book.title}" added to your library!`);
-  };
-
-  const handleUploadBook = () => {
-    toast.info('EPUB upload coming soon!');
-  };
-
-  const handleBookClick = (book: Book, isUserBook: boolean) => {
-    if (isUserBook && book.status === 'ready') {
-      navigate(`/reader/${book.id}`);
-    } else if (isUserBook) {
+  const handleBookClick = (bookId: string, status: string) => {
+    if (status === 'ready') {
+      navigate(`/reader/${bookId}`);
+    } else if (status === 'processing' || status === 'uploaded') {
       toast.info('This book is still processing. Please wait.');
-    } else {
-      setSelectedBook(book);
+    } else if (status === 'failed') {
+      toast.error('Voice generation failed. Try again later.');
     }
   };
 
-  const filteredBooks = myBooks.filter(book =>
+  const handleFreeBookClick = (book: Book) => {
+    setSelectedBook(book);
+  };
+
+  const handleAddToLibrary = (book: Book) => {
+    toast.success(`"${book.title}" added to your library!`);
+    setSelectedBook(null);
+  };
+
+  const filteredBooks = books.filter(book =>
     book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    book.author.toLowerCase().includes(searchQuery.toLowerCase())
+    (book.author?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -63,7 +66,7 @@ export default function Library() {
                 className="pl-10 input-warm"
               />
             </div>
-            <Button variant="warm" className="gap-2" onClick={handleUploadBook}>
+            <Button variant="warm" className="gap-2" onClick={() => setIsUploadModalOpen(true)}>
               <Plus className="w-4 h-4" />
               <span className="hidden md:inline">New Book</span>
             </Button>
@@ -73,37 +76,68 @@ export default function Library() {
         {/* Your Library Section */}
         <section className="mb-12">
           <h2 className="font-serif text-xl text-foreground mb-4">Your Library</h2>
-          <div className="scroll-smooth-x">
-            {filteredBooks.map((book, index) => (
-              <motion.div
-                key={book.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <BookCard
-                  book={book}
-                  showStatus
-                  onClick={() => handleBookClick(book, true)}
-                />
-              </motion.div>
-            ))}
-            <AddBookCard onClick={handleUploadBook} />
-          </div>
-
-          {/* Progress bar for library */}
-          {myBooks.length > 0 && (
-            <div className="mt-4 flex items-center gap-4">
-              <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-500"
-                  style={{ width: `${(myBooks.filter(b => b.status === 'ready').length / myBooks.length) * 100}%` }}
-                />
-              </div>
-              <span className="text-sm text-muted-foreground">
-                {myBooks.filter(b => b.status === 'ready').length}/{myBooks.length} ready
-              </span>
+          
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
+          ) : filteredBooks.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center py-12 bg-secondary/30 rounded-2xl"
+            >
+              <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="font-serif text-lg text-foreground mb-2">
+                {searchQuery ? 'No books found' : 'Your library is empty'}
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                {searchQuery 
+                  ? 'Try a different search term' 
+                  : 'Upload your first EPUB to get started'}
+              </p>
+              {!searchQuery && (
+                <Button variant="warm" onClick={() => setIsUploadModalOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Your First Book
+                </Button>
+              )}
+            </motion.div>
+          ) : (
+            <>
+              <div className="scroll-smooth-x">
+                {filteredBooks.map((book, index) => (
+                  <motion.div
+                    key={book.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <BookCard
+                      book={book}
+                      showStatus
+                      onClick={() => handleBookClick(book.id, book.status)}
+                    />
+                  </motion.div>
+                ))}
+                <AddBookCard onClick={() => setIsUploadModalOpen(true)} />
+              </div>
+
+              {/* Progress bar for library */}
+              <div className="mt-4 flex items-center gap-4">
+                <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-500"
+                    style={{ 
+                      width: `${(books.filter(b => b.status === 'ready').length / books.length) * 100}%` 
+                    }}
+                  />
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {books.filter(b => b.status === 'ready').length}/{books.length} ready
+                </span>
+              </div>
+            </>
           )}
         </section>
 
@@ -125,15 +159,24 @@ export default function Library() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 + index * 0.1 }}
               >
-                <BookCard
+                <LegacyBookCard
                   book={book}
-                  onClick={() => handleBookClick(book, false)}
+                  onClick={() => handleFreeBookClick(book)}
                 />
               </motion.div>
             ))}
           </div>
         </section>
       </main>
+
+      {/* Upload Modal */}
+      <UploadBookModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onUpload={uploadBook}
+        isUploading={isUploading}
+        uploadProgress={uploadProgress}
+      />
 
       {/* Book Detail Modal */}
       <BookDetailModal

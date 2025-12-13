@@ -294,32 +294,36 @@ create policy "Users can upload covers"
 
 ---
 
-## Phase 4: EPUB Upload Flow
+## Phase 4: EPUB Upload Flow ✅ COMPLETE
 
-### 4.1 Upload Component
-- [ ] Create `UploadBookModal.tsx` component
-- [ ] File input with 10MB limit validation
-- [ ] EPUB file type validation (`.epub` only)
-- [ ] Upload progress indicator
-- [ ] Error handling with toast notifications
+### 4.1 Upload Component ✅
+- [x] Create `UploadBookModal.tsx` component
+- [x] File input with 10MB limit validation
+- [x] EPUB file type validation (`.epub` only)
+- [x] Upload progress indicator
+- [x] Error handling with toast notifications
+- [x] Drag & drop support
 
-### 4.2 EPUB Processing
-- [ ] Upload EPUB to `epub-files` bucket
-- [ ] Extract metadata (title, author) from EPUB
-- [ ] Generate/extract cover image
-- [ ] Upload cover to `book-covers` bucket
-- [ ] Insert book record with `status: 'uploaded'`
+### 4.2 EPUB Processing ✅
+- [x] Upload EPUB to `epub-files` bucket
+- [x] Extract metadata (title, author) from EPUB using JSZip
+- [x] Extract cover image from EPUB
+- [x] Upload cover to `book-covers` bucket
+- [x] Insert book record with `status: 'uploaded'`
 
-### 4.3 Library Integration
-- [ ] Replace mock data with real Supabase queries
-- [ ] Add "Add New Book" button that opens upload modal
-- [ ] Show upload success with book appearing in library
-- [ ] Real-time status updates using Supabase subscriptions
+### 4.3 Library Integration ✅
+- [x] Replace mock data with real Supabase queries
+- [x] Created `useBooks` hook for data management
+- [x] Add "New Book" button that opens upload modal
+- [x] Show upload success with book appearing in library
+- [x] Real-time status updates using Supabase subscriptions
+- [x] Empty state when no books
+- [x] Search/filter books
 
-**Reference files:** 
-- `src/pages/Library.tsx`
-- `src/components/BookCard.tsx`
-- `src/data/books.ts` (to be deprecated)
+**Files created:**
+- `src/lib/epub-parser.ts` - EPUB metadata extraction
+- `src/hooks/useBooks.ts` - Books data hook with realtime
+- `src/components/UploadBookModal.tsx` - Upload modal
 
 ---
 
@@ -490,8 +494,8 @@ create policy "Users can upload covers"
 | Phase 1: Setup | ✅ Complete | Core UI scaffolded |
 | Phase 2: Cloud | ✅ Complete | Database schema + storage buckets created |
 | Phase 3: Auth | ✅ Complete | Auth context, protected routes, login/signup |
-| Phase 4: Upload | 🔄 Next | EPUB upload flow |
-| Phase 5: TTS | ⏳ Pending | Need RunPod API key |
+| Phase 4: Upload | ✅ Complete | EPUB upload + parsing + storage |
+| Phase 5: TTS | 🔄 Next | AI voice generation |
 | Phase 6: Reader | ⏳ Pending | Partial UI exists |
 | Phase 7: Discovery | ⏳ Pending | Partial UI exists |
 | Phase 8: Polish | ⏳ Pending | Ongoing |

@@ -21,12 +21,13 @@ export default function Library() {
   const { books, isLoading, isUploading, uploadProgress, uploadBook } = useBooks();
 
   const handleBookClick = (bookId: string, status: string) => {
-    if (status === 'ready') {
+    // 'uploaded' and 'ready' are both readable (Phase 5 AI voice deferred)
+    if (status === 'ready' || status === 'uploaded') {
       navigate(`/reader/${bookId}`);
-    } else if (status === 'processing' || status === 'uploaded') {
+    } else if (status === 'processing') {
       toast.info('This book is still processing. Please wait.');
     } else if (status === 'failed') {
-      toast.error('Voice generation failed. Try again later.');
+      toast.error('Processing failed. Try re-uploading the book.');
     }
   };
 

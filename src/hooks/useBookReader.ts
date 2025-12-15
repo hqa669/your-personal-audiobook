@@ -14,7 +14,8 @@ export function useBookReader(bookId: string | undefined) {
   const [book, setBook] = useState<{ id: string; title: string; author: string; epubUrl: string; status: string } | null>(null);
   const [parsedBook, setParsedBook] = useState<ParsedBook | null>(null);
   const [currentChapter, setCurrentChapter] = useState<Chapter | null>(null);
-  const [chapterIndex, setChapterIndex] = useState(0);
+  const [chapterIndex, setChapterIndex] = useState<number | null>(null);
+  const [initialProgressLoaded, setInitialProgressLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<PlaybackProgress>({ chapterIndex: 0, positionSeconds: 0 });
@@ -70,13 +71,12 @@ export function useBookReader(bookId: string | undefined) {
         .eq('user_id', user.id)
         .single();
       
-      if (progressData) {
-        setProgress({
-          chapterIndex: progressData.chapter_index || 0,
-          positionSeconds: progressData.position_seconds || 0,
-        });
-        setChapterIndex(progressData.chapter_index || 0);
-      }
+      const savedChapter = progressData?.chapter_index || 0;
+      const savedPosition = progressData?.position_seconds || 0;
+      setProgress({ chapterIndex: savedChapter, positionSeconds: savedPosition });
+      setChapterIndex(savedChapter);
+      setInitialProgressLoaded(true);
+      console.log('[useBookReader] Restored progress - chapter:', savedChapter, 'position:', savedPosition);
     } catch (err) {
       console.error('[useBookReader] Failed to fetch book:', err);
       setError('Failed to load book');
@@ -86,9 +86,9 @@ export function useBookReader(bookId: string | undefined) {
     }
   }, [bookId, user, book]);
 
-  // Idempotent EPUB parsing function
+  // Idempotent EPUB parsing function - waits for progress to load first
   const loadEpub = useCallback(async () => {
-    if (!book?.epubUrl) return;
+    if (!book?.epubUrl || !initialProgressLoaded) return;
     if (isLoadingEpubRef.current) {
       console.log('[useBookReader] EPUB parse already in progress, skipping');
       return;
@@ -101,9 +101,10 @@ export function useBookReader(bookId: string | undefined) {
     }
     
     isLoadingEpubRef.current = true;
+    const targetChapter = chapterIndex ?? 0;
     
     try {
-      console.log('[useBookReader] Parsing EPUB for book:', book.id);
+      console.log('[useBookReader] Parsing EPUB for book:', book.id, 'target chapter:', targetChapter);
       // Get signed URL for the EPUB file
       const epubPath = book.epubUrl.split('/').slice(-2).join('/');
       const { data: signedData, error: signError } = await supabase.storage
@@ -118,10 +119,11 @@ export function useBookReader(bookId: string | undefined) {
       setParsedBook(parsed);
       
       // Set current chapter based on saved progress
-      if (parsed.chapters[chapterIndex]) {
-        setCurrentChapter(parsed.chapters[chapterIndex]);
+      if (parsed.chapters[targetChapter]) {
+        setCurrentChapter(parsed.chapters[targetChapter]);
       } else {
         setCurrentChapter(parsed.chapters[0]);
+        setChapterIndex(0);
       }
     } catch (err) {
       console.error('[useBookReader] Failed to parse EPUB:', err);
@@ -130,7 +132,7 @@ export function useBookReader(bookId: string | undefined) {
       isLoadingEpubRef.current = false;
       setIsLoading(false);
     }
-  }, [book?.epubUrl, book?.id, chapterIndex, parsedBook]);
+  }, [book?.epubUrl, book?.id, chapterIndex, parsedBook, initialProgressLoaded]);
 
   // Handle page visibility changes - retry loading if stuck
   useEffect(() => {
@@ -181,27 +183,11 @@ export function useBookReader(bookId: string | undefined) {
     loadEpub();
   }, [loadEpub]);
 
-  // Navigate to chapter
-  const goToChapter = useCallback((index: number) => {
-    if (!parsedBook || index < 0 || index >= parsedBook.chapters.length) return;
-    
-    setChapterIndex(index);
-    setCurrentChapter(parsedBook.chapters[index]);
-  }, [parsedBook]);
-
-  const nextChapter = useCallback(() => {
-    goToChapter(chapterIndex + 1);
-  }, [chapterIndex, goToChapter]);
-
-  const prevChapter = useCallback(() => {
-    goToChapter(chapterIndex - 1);
-  }, [chapterIndex, goToChapter]);
-
   // Save progress
   const saveProgress = useCallback(async (newChapterIndex?: number, positionSeconds?: number) => {
     if (!bookId || !user) return;
     
-    const chapterToSave = newChapterIndex ?? chapterIndex;
+    const chapterToSave = newChapterIndex ?? chapterIndex ?? 0;
     const positionToSave = positionSeconds ?? progress.positionSeconds;
     
     try {
@@ -235,18 +221,28 @@ export function useBookReader(bookId: string | undefined) {
     }
   }, [bookId, user, chapterIndex, progress.positionSeconds]);
 
-  // Save progress when chapter changes
-  useEffect(() => {
-    if (parsedBook && currentChapter) {
-      saveProgress(chapterIndex);
-    }
-  }, [chapterIndex]);
+  // Navigate to chapter
+  const goToChapter = useCallback((index: number) => {
+    if (!parsedBook || index < 0 || index >= parsedBook.chapters.length) return;
+    
+    setChapterIndex(index);
+    setCurrentChapter(parsedBook.chapters[index]);
+    saveProgress(index);
+  }, [parsedBook, saveProgress]);
+
+  const nextChapter = useCallback(() => {
+    goToChapter((chapterIndex ?? 0) + 1);
+  }, [chapterIndex, goToChapter]);
+
+  const prevChapter = useCallback(() => {
+    goToChapter((chapterIndex ?? 0) - 1);
+  }, [chapterIndex, goToChapter]);
 
   return {
     book,
     parsedBook,
     currentChapter,
-    chapterIndex,
+    chapterIndex: chapterIndex ?? 0,
     totalChapters: parsedBook?.chapters.length || 0,
     isLoading,
     error,
@@ -254,7 +250,7 @@ export function useBookReader(bookId: string | undefined) {
     nextChapter,
     prevChapter,
     saveProgress,
-    hasNext: parsedBook ? chapterIndex < parsedBook.chapters.length - 1 : false,
-    hasPrev: chapterIndex > 0,
+    hasNext: parsedBook ? (chapterIndex ?? 0) < parsedBook.chapters.length - 1 : false,
+    hasPrev: (chapterIndex ?? 0) > 0,
   };
 }

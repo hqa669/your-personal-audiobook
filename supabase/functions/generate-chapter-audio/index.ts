@@ -481,11 +481,14 @@ async function parseChapterParagraphs(
   if (!content) throw new Error(`No content found at: ${fullPath}`);
 
   const paragraphs: { paragraphIndex: number; text: string; estimatedDuration: number }[] = [];
-  const paragraphMatches = content.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi);
+  
+  // Match ALL block elements in order - same as frontend's querySelectorAll('p, h1, h2, h3, h4, h5, h6, div, blockquote')
+  // This ensures paragraph indices match the Reader's display
+  const blockMatches = content.matchAll(/<(p|h[1-6]|div|blockquote)[^>]*>([\s\S]*?)<\/\1>/gi);
   let paragraphIdx = 0;
 
-  for (const match of paragraphMatches) {
-    let text = match[1]
+  for (const match of blockMatches) {
+    let text = match[2]
       .replace(/<[^>]+>/g, "")
       .replace(/&nbsp;/g, " ")
       .replace(/&amp;/g, "&")
@@ -496,7 +499,8 @@ async function parseChapterParagraphs(
       .replace(/\s+/g, " ")
       .trim();
 
-    if (text.length > 20) {
+    // Only include blocks with meaningful text (matches frontend filter: text.length > 0)
+    if (text.length > 0) {
       const estimatedDuration = estimateDurationSeconds(text);
       paragraphs.push({
         paragraphIndex: paragraphIdx,

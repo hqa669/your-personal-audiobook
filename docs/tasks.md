@@ -417,6 +417,7 @@ create policy "Users can upload covers"
 
 ### 6.4 Bug Fixes
 - [x] Fix chapter index alignment between reader and audio (edge function now uses same filtering logic as frontend)
+- [x] Fix paragraph highlight offset (edge function now extracts ALL block elements like frontend: p, h1-h6, div, blockquote)
 
 **Files created:**
 - `src/lib/epub-chapter-parser.ts` - EPUB chapter extraction

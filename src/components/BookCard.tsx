@@ -46,11 +46,6 @@ export function BookCard({ book, onClick, onDelete, showStatus = false, classNam
     onClick?.();
   };
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    onDelete?.();
-  };
   
   return (
     <motion.div
@@ -107,16 +102,26 @@ export function BookCard({ book, onClick, onDelete, showStatus = false, classNam
           {/* More menu */}
           {onDelete && (
             <div
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
+              onClickCapture={(e) => e.stopPropagation()}
+              onPointerDownCapture={(e) => e.stopPropagation()}
+              onMouseDownCapture={(e) => e.stopPropagation()}
             >
               <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                <DropdownMenuTrigger className="bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity">
-                  <MoreVertical className="w-3 h-3 text-foreground" />
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <MoreVertical className="w-3 h-3 text-foreground" />
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="z-50">
                   <DropdownMenuItem
-                    onClick={handleDeleteClick}
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      onDelete?.();
+                      setMenuOpen(false);
+                    }}
                     className="text-destructive focus:text-destructive"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />

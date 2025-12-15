@@ -338,24 +338,27 @@ create policy "Users can upload covers"
 - [x] Idempotent - never generates same paragraph twice
 - [x] Instant abort on chapter switch
 
-### 5.2 Token-Safe Paragraph Chunking ✅
-- [x] 400 token limit detection (conservative 4 chars/token estimate)
+### 5.2 Sub-Chunk Streaming Audio ✅ (v3)
+- [x] ~100 token target per sub-chunk for fast first-audio
 - [x] Sentence-aware splitting (preserves complete sentences)
 - [x] Secondary punctuation fallback (comma, semicolon)
 - [x] Hard split as last resort for extremely long sentences
-- [x] WAV audio concatenation for multi-chunk paragraphs
-- [x] Atomic paragraph state (partial chunks never exposed)
+- [x] Each sub-chunk generates independently (no WAV concatenation)
+- [x] Playback starts when first sub-chunk is ready
+- [x] Multiple audio files per paragraph played in sequence
 - [x] Abort-safe during chunk generation
 
 ### 5.3 Database Schema Updates ✅
 - [x] Updated `audio_tracks` table with:
   - `chapter_index` - chapter scoping
   - `paragraph_index` - paragraph ordering
-  - `text` - paragraph text
+  - `chunk_index` - sub-chunk ordering within paragraph
+  - `total_chunks` - number of chunks for this paragraph
+  - `text` - chunk text
   - `estimated_duration_seconds` - pre-generation estimate
   - `actual_duration_seconds` - post-generation actual
   - `status` - state machine (NOT_GENERATED, GENERATING, GENERATED)
-  - Unique constraint on (book_id, chapter_index, paragraph_index)
+  - Unique constraint on (book_id, chapter_index, paragraph_index, chunk_index)
 
 ### 5.4 Hook: `useChapterAudio` ✅
 - [x] Chapter-scoped audio management

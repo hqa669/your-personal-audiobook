@@ -174,15 +174,66 @@ export function useBooks() {
   };
 
   const deleteBook = async (bookId: string): Promise<boolean> => {
+    if (!user) {
+      toast.error('Please sign in to delete books');
+      return false;
+    }
+
     try {
-      const { error } = await supabase
-        .from('books')
+      // 1. Get book info for storage cleanup
+      const bookToDelete = books.find((b) => b.id === bookId);
+      if (!bookToDelete) {
+        toast.error('Book not found');
+        return false;
+      }
+
+      // 2. Get all audio tracks for this book to delete audio files
+      const { data: audioTracks } = await supabase
+        .from('audio_tracks')
+        .select('audio_url')
+        .eq('book_id', bookId);
+
+      // 3. Delete audio files from storage
+      if (audioTracks && audioTracks.length > 0) {
+        const audioFilePaths = audioTracks
+          .filter((t) => t.audio_url)
+          .map((t) => t.audio_url as string);
+
+        if (audioFilePaths.length > 0) {
+          await supabase.storage.from('audio-files').remove(audioFilePaths);
+        }
+      }
+
+      // 4. Delete audio track records
+      await supabase.from('audio_tracks').delete().eq('book_id', bookId);
+
+      // 5. Delete playback progress
+      await supabase
+        .from('playback_progress')
         .delete()
-        .eq('id', bookId);
+        .eq('book_id', bookId)
+        .eq('user_id', user.id);
+
+      // 6. Delete EPUB file from storage
+      if (bookToDelete.epub_url) {
+        await supabase.storage.from('epub-files').remove([bookToDelete.epub_url]);
+      }
+
+      // 7. Delete cover image from storage (if it's a user-uploaded cover)
+      if (bookToDelete.cover_url && bookToDelete.cover_url.includes('book-covers')) {
+        // Extract the path from the full URL
+        const coverPath = bookToDelete.cover_url.split('book-covers/')[1];
+        if (coverPath) {
+          await supabase.storage.from('book-covers').remove([coverPath]);
+        }
+      }
+
+      // 8. Finally delete the book record
+      const { error } = await supabase.from('books').delete().eq('id', bookId);
 
       if (error) throw error;
-      
-      toast.success('Book removed from library');
+
+      toast.success('Book deleted permanently');
       return true;
     } catch (error) {
       console.error('Delete error:', error);

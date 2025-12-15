@@ -6,10 +6,11 @@ import { Header } from '@/components/Header';
 import { BookCard, LegacyBookCard, AddBookCard } from '@/components/BookCard';
 import { BookDetailModal } from '@/components/BookDetailModal';
 import { UploadBookModal } from '@/components/UploadBookModal';
+import { DeleteBookDialog } from '@/components/DeleteBookDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { freeBooks, Book } from '@/data/books';
-import { useBooks } from '@/hooks/useBooks';
+import { useBooks, UserBook } from '@/hooks/useBooks';
 import { toast } from 'sonner';
 
 export default function Library() {
@@ -17,8 +18,10 @@ export default function Library() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [bookToDelete, setBookToDelete] = useState<UserBook | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
-  const { books, isLoading, isUploading, uploadProgress, uploadBook } = useBooks();
+  const { books, isLoading, isUploading, uploadProgress, uploadBook, deleteBook } = useBooks();
 
   const handleBookClick = (bookId: string, status: string) => {
     // 'uploaded' and 'ready' are both readable (Phase 5 AI voice deferred)
@@ -38,6 +41,22 @@ export default function Library() {
   const handleAddToLibrary = (book: Book) => {
     toast.success(`"${book.title}" added to your library!`);
     setSelectedBook(null);
+  };
+
+  const handleDeleteClick = (book: UserBook) => {
+    setBookToDelete(book);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!bookToDelete) return;
+    
+    setIsDeleting(true);
+    const success = await deleteBook(bookToDelete.id);
+    setIsDeleting(false);
+    
+    if (success) {
+      setBookToDelete(null);
+    }
   };
 
   const filteredBooks = books.filter(book =>
@@ -118,6 +137,7 @@ export default function Library() {
                       book={book}
                       showStatus
                       onClick={() => handleBookClick(book.id, book.status)}
+                      onDelete={() => handleDeleteClick(book)}
                     />
                   </motion.div>
                 ))}
@@ -185,6 +205,15 @@ export default function Library() {
         isOpen={!!selectedBook}
         onClose={() => setSelectedBook(null)}
         onAddToLibrary={handleAddToLibrary}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteBookDialog
+        isOpen={!!bookToDelete}
+        onClose={() => setBookToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        bookTitle={bookToDelete?.title || ''}
+        isDeleting={isDeleting}
       />
     </div>
   );

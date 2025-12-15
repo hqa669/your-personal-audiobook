@@ -327,14 +327,14 @@ create policy "Users can upload covers"
 
 ---
 
-## Phase 5: AI Voice Generation ✅ COMPLETE (v2 - Chapter-Scoped Streaming)
+## Phase 5: AI Voice Generation ✅ COMPLETE (v4 - Fire-and-Forget)
 
 ### 5.1 Edge Function: `generate-chapter-audio` ✅
 - [x] Chapter-scoped generation (not whole book)
 - [x] Duration estimation at 160 WPM
 - [x] Initial 5-minute buffer generation
 - [x] 15-minute rolling buffer with 10-second polling
-- [x] Paragraph state machine (NOT_GENERATED, GENERATING, GENERATED)
+- [x] Paragraph state machine (NOT_GENERATED, PENDING, GENERATING, GENERATED)
 - [x] Idempotent - never generates same paragraph twice
 - [x] Instant abort on chapter switch
 
@@ -357,7 +357,8 @@ create policy "Users can upload covers"
   - `text` - chunk text
   - `estimated_duration_seconds` - pre-generation estimate
   - `actual_duration_seconds` - post-generation actual
-  - `status` - state machine (NOT_GENERATED, GENERATING, GENERATED)
+  - `status` - state machine (NOT_GENERATED, PENDING, GENERATING, GENERATED)
+  - `runpod_job_id` - tracks RunPod job for async completion
   - Unique constraint on (book_id, chapter_index, paragraph_index, chunk_index)
 
 ### 5.4 Hook: `useChapterAudio` ✅
@@ -373,11 +374,6 @@ create policy "Users can upload covers"
 - [x] Play/pause controls
 - [x] Playback speed control
 
-**Files created/updated:**
-- `supabase/functions/generate-chapter-audio/index.ts` - Chapter-scoped edge function with token-safe chunking
-- `src/hooks/useChapterAudio.ts` - Chapter audio management hook
-- Deleted old `useAudioGeneration.ts` and `useAudioPlayback.ts`
-
 ### 5.6 Book Deletion (Atomic Cleanup) ✅
 - [x] Delete confirmation dialog with explicit warning
 - [x] Abort active TTS generation on delete
@@ -388,6 +384,20 @@ create policy "Users can upload covers"
 - [x] Delete cover image from storage
 - [x] Delete book record
 - [x] Context menu on BookCard with delete option
+
+### 5.7 Fire-and-Forget Architecture ✅ (v4)
+- [x] Edge Function submits RunPod jobs and returns immediately (no polling)
+- [x] Stores `runpod_job_id` in audio_tracks with `PENDING` status
+- [x] New `poll-audio-jobs` Edge Function checks RunPod for job completion
+- [x] Client polls `poll-audio-jobs` to track progress and download completed audio
+- [x] Completed audio uploaded to storage and status updated to `GENERATED`
+- [x] Failed jobs reset to `NOT_GENERATED` for retry
+- [x] Eliminates Edge Function timeout/network failures during long TTS generation
+
+**Files created/updated:**
+- `supabase/functions/generate-chapter-audio/index.ts` - Fire-and-forget job submission
+- `supabase/functions/poll-audio-jobs/index.ts` - NEW: Polls RunPod and downloads completed audio
+- `src/hooks/useChapterAudio.ts` - Chapter audio management with job polling
 
 **Files created:**
 - `src/components/DeleteBookDialog.tsx` - Delete confirmation dialog

@@ -12,11 +12,9 @@ const RUNPOD_ENDPOINT_ID = Deno.env.get("RUNPOD_ENDPOINT_ID");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-const POLL_INTERVAL_MS = 1500;
-const TIMEOUT_MS = 120000;
 const WORDS_PER_MINUTE = 160.0;
-const TARGET_CHUNK_TOKENS = 100; // Target ~100 tokens per chunk for fast streaming
-const MAX_TTS_TOKENS = 400; // Hard limit
+const TARGET_CHUNK_TOKENS = 100;
+const MAX_TTS_TOKENS = 400;
 const CHARS_PER_TOKEN = 4;
 
 /**
@@ -52,12 +50,10 @@ function splitByPunctuation(text: string): string[] {
 
 /**
  * Split paragraph into ~100 token streaming chunks
- * This ensures fast first-audio availability
  */
 function splitParagraphIntoStreamingChunks(text: string): string[] {
   const totalTokens = estimateTokens(text);
   
-  // If very short, return as-is
   if (totalTokens <= TARGET_CHUNK_TOKENS) {
     return [text];
   }
@@ -70,15 +66,12 @@ function splitParagraphIntoStreamingChunks(text: string): string[] {
     const sentenceTokens = estimateTokens(sentence);
     const currentTokens = estimateTokens(currentChunk);
 
-    // If this sentence alone exceeds max limit, split it further
     if (sentenceTokens > MAX_TTS_TOKENS) {
-      // Flush current chunk first
       if (currentChunk.trim()) {
         chunks.push(currentChunk.trim());
         currentChunk = "";
       }
 
-      // Split long sentence by punctuation or hard split
       const subParts = splitByPunctuation(sentence);
       let subChunk = "";
 
@@ -87,7 +80,6 @@ function splitParagraphIntoStreamingChunks(text: string): string[] {
         const subChunkTokens = estimateTokens(subChunk);
 
         if (partTokens > MAX_TTS_TOKENS) {
-          // Hard split as last resort
           if (subChunk.trim()) {
             chunks.push(subChunk.trim());
             subChunk = "";
@@ -106,18 +98,15 @@ function splitParagraphIntoStreamingChunks(text: string): string[] {
       }
       if (subChunk.trim()) chunks.push(subChunk.trim());
     }
-    // If adding this sentence exceeds target, flush current chunk
     else if (currentTokens + sentenceTokens > TARGET_CHUNK_TOKENS && currentChunk.trim()) {
       chunks.push(currentChunk.trim());
       currentChunk = sentence;
     }
-    // Otherwise accumulate
     else {
       currentChunk = currentChunk ? currentChunk + " " + sentence : sentence;
     }
   }
 
-  // Don't forget remaining chunk
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim());
   }
@@ -126,7 +115,8 @@ function splitParagraphIntoStreamingChunks(text: string): string[] {
 }
 
 /**
- * Submit a TTS job to RunPod
+ * Submit a TTS job to RunPod - FIRE AND FORGET
+ * Returns job_id immediately without waiting for completion
  */
 async function submitTtsJob(text: string): Promise<string> {
   const runUrl = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/run`;
@@ -148,52 +138,8 @@ async function submitTtsJob(text: string): Promise<string> {
   }
 
   const data = await response.json();
+  console.log(`[generate-chapter-audio] Submitted job ${data.id}`);
   return data.id;
-}
-
-/**
- * Wait for a RunPod job to complete
- */
-async function waitForCompletion(jobId: string): Promise<string> {
-  const statusUrl = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/status/${jobId}`;
-  const deadline = Date.now() + TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    const response = await fetch(statusUrl, {
-      headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
-    });
-
-    if (!response.ok) {
-      throw new Error(`RunPod status check failed: ${await response.text()}`);
-    }
-
-    const data = await response.json();
-    const status = data.status;
-
-    if (status === "COMPLETED") {
-      return data.output.audio_base64;
-    }
-
-    if (status === "FAILED" || status === "CANCELLED") {
-      throw new Error(`RunPod job ${status}: ${JSON.stringify(data)}`);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-  }
-
-  throw new Error("RunPod TTS job timed out");
-}
-
-/**
- * Convert base64 to Uint8Array
- */
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
 }
 
 /**
@@ -371,7 +317,7 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Get existing tracks for this chapter (including chunk info)
+    // Get existing tracks for this chapter
     const { data: existingTracks } = await supabaseAdmin
       .from("audio_tracks")
       .select("paragraph_index, chunk_index, total_chunks, status, estimated_duration_seconds")
@@ -427,38 +373,39 @@ serve(async (req) => {
       chunkIndex: number;
       totalChunks: number;
       text: string;
-      paragraphDuration: number; // Full paragraph duration for tracking
+      paragraphDuration: number;
     }
     const chunksToGenerate: ChunkToGenerate[] = [];
 
     for (const para of paragraphs) {
       const existing = paragraphStatus.get(para.paragraphIndex);
       
-      // Split paragraph into streaming chunks
       const textChunks = splitParagraphIntoStreamingChunks(para.text);
       const totalChunks = textChunks.length;
       
-      // Check if this paragraph is fully generated
+      // Check if this paragraph is fully generated or pending
       if (existing && existing.totalChunks === totalChunks) {
-        let allDone = true;
+        let allInProgress = true;
         for (let i = 0; i < totalChunks; i++) {
           const status = existing.chunks.get(i);
-          if (status !== "GENERATED" && status !== "GENERATING") {
-            allDone = false;
+          // Skip if already GENERATED, PENDING, or GENERATING
+          if (status !== "GENERATED" && status !== "PENDING" && status !== "GENERATING") {
+            allInProgress = false;
             break;
           }
         }
-        if (allDone) {
+        if (allInProgress) {
           accumulatedDuration += para.estimatedDuration;
           continue;
         }
       }
 
-      // This paragraph needs generation - queue chunks
+      // Queue chunks that need generation
       if (accumulatedDuration < targetDurationSeconds) {
         for (let i = 0; i < textChunks.length; i++) {
-          // Skip already generated/generating chunks
-          if (existing?.chunks.get(i) === "GENERATED" || existing?.chunks.get(i) === "GENERATING") {
+          const existingStatus = existing?.chunks.get(i);
+          // Skip already done or in-progress
+          if (existingStatus === "GENERATED" || existingStatus === "PENDING" || existingStatus === "GENERATING") {
             continue;
           }
           
@@ -479,97 +426,74 @@ serve(async (req) => {
         JSON.stringify({ 
           success: true, 
           message: "No new chunks need generation",
-          generated: 0 
+          submitted: 0 
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[generate-chapter-audio] Generating ${chunksToGenerate.length} chunks for ~${targetDurationMinutes} min buffer`);
+    console.log(`[generate-chapter-audio] Submitting ${chunksToGenerate.length} jobs for ~${targetDurationMinutes} min buffer`);
 
-    // Insert/update chunks as GENERATING
-    for (const chunk of chunksToGenerate) {
-      await supabaseAdmin
-        .from("audio_tracks")
-        .upsert({
-          book_id: bookId,
-          chapter_index: chapterIndex,
-          paragraph_index: chunk.paragraphIndex,
-          chunk_index: chunk.chunkIndex,
-          total_chunks: chunk.totalChunks,
-          text: chunk.text,
-          estimated_duration_seconds: chunk.paragraphDuration / chunk.totalChunks, // Split duration
-          status: "GENERATING",
-        }, { onConflict: "book_id,chapter_index,paragraph_index,chunk_index" });
-    }
+    // Submit jobs and store job_id in DB - FIRE AND FORGET
+    let submittedCount = 0;
+    const submittedJobs: { paragraphIndex: number; chunkIndex: number; jobId: string }[] = [];
 
-    // Process chunks sequentially (could be parallelized in future)
-    let generatedCount = 0;
     for (const chunk of chunksToGenerate) {
       try {
-        console.log(`[generate-chapter-audio] Processing p${chunk.paragraphIndex}c${chunk.chunkIndex} (${estimateTokens(chunk.text)} tokens)`);
+        console.log(`[generate-chapter-audio] Submitting p${chunk.paragraphIndex}c${chunk.chunkIndex} (${estimateTokens(chunk.text)} tokens)`);
         
-        // Generate audio for this single chunk
+        // Submit job to RunPod
         const jobId = await submitTtsJob(chunk.text);
-        const audioBase64 = await waitForCompletion(jobId);
-        const audioBytes = base64ToUint8Array(audioBase64);
-
-        // Upload to storage with chunk index in filename
-        const audioPath = `${user.id}/${bookId}/chapter_${chapterIndex}_para_${chunk.paragraphIndex}_chunk_${chunk.chunkIndex}.wav`;
-        const { error: uploadError } = await supabaseAdmin.storage
-          .from("audio-files")
-          .upload(audioPath, audioBytes, {
-            contentType: "audio/wav",
-            upsert: true,
-          });
-
-        if (uploadError) {
-          console.error(`[generate-chapter-audio] Upload error:`, uploadError);
-          continue;
-        }
-
-        // Update track as GENERATED
-        await supabaseAdmin
-          .from("audio_tracks")
-          .update({
-            audio_url: audioPath,
-            status: "GENERATED",
-            generated_at: new Date().toISOString(),
-          })
-          .eq("book_id", bookId)
-          .eq("chapter_index", chapterIndex)
-          .eq("paragraph_index", chunk.paragraphIndex)
-          .eq("chunk_index", chunk.chunkIndex);
-
-        generatedCount++;
-      } catch (err) {
-        console.error(`[generate-chapter-audio] Error processing p${chunk.paragraphIndex}c${chunk.chunkIndex}:`, err);
         
-        // Mark as NOT_GENERATED so it can be retried
+        // Store in DB with PENDING status and job_id
         await supabaseAdmin
           .from("audio_tracks")
-          .update({ status: "NOT_GENERATED" })
-          .eq("book_id", bookId)
-          .eq("chapter_index", chapterIndex)
-          .eq("paragraph_index", chunk.paragraphIndex)
-          .eq("chunk_index", chunk.chunkIndex);
+          .upsert({
+            book_id: bookId,
+            chapter_index: chapterIndex,
+            paragraph_index: chunk.paragraphIndex,
+            chunk_index: chunk.chunkIndex,
+            total_chunks: chunk.totalChunks,
+            text: chunk.text,
+            estimated_duration_seconds: chunk.paragraphDuration / chunk.totalChunks,
+            status: "PENDING",
+            runpod_job_id: jobId,
+          }, { onConflict: "book_id,chapter_index,paragraph_index,chunk_index" });
+
+        submittedJobs.push({
+          paragraphIndex: chunk.paragraphIndex,
+          chunkIndex: chunk.chunkIndex,
+          jobId,
+        });
+        submittedCount++;
+      } catch (err) {
+        console.error(`[generate-chapter-audio] Error submitting p${chunk.paragraphIndex}c${chunk.chunkIndex}:`, err);
+        // Mark as NOT_GENERATED for retry
+        await supabaseAdmin
+          .from("audio_tracks")
+          .upsert({
+            book_id: bookId,
+            chapter_index: chapterIndex,
+            paragraph_index: chunk.paragraphIndex,
+            chunk_index: chunk.chunkIndex,
+            total_chunks: chunk.totalChunks,
+            text: chunk.text,
+            estimated_duration_seconds: chunk.paragraphDuration / chunk.totalChunks,
+            status: "NOT_GENERATED",
+          }, { onConflict: "book_id,chapter_index,paragraph_index,chunk_index" });
       }
     }
 
-    // Update book status if we have some audio
-    if (generatedCount > 0) {
-      await supabaseAdmin
-        .from("books")
-        .update({ status: "ready", updated_at: new Date().toISOString() })
-        .eq("id", bookId);
-    }
+    console.log(`[generate-chapter-audio] Submitted ${submittedCount} jobs, returning immediately`);
 
+    // Return immediately - do NOT wait for completion
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Generated ${generatedCount} audio chunks`,
-        generated: generatedCount,
+        message: `Submitted ${submittedCount} audio jobs`,
+        submitted: submittedCount,
         total: chunksToGenerate.length,
+        jobs: submittedJobs,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

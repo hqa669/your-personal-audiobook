@@ -26,6 +26,7 @@ export type Database = {
           generated_at: string | null
           id: string
           paragraph_index: number
+          runpod_job_id: string | null
           status: string
           text: string
           total_chunks: number
@@ -41,6 +42,7 @@ export type Database = {
           generated_at?: string | null
           id?: string
           paragraph_index: number
+          runpod_job_id?: string | null
           status?: string
           text: string
           total_chunks?: number
@@ -56,6 +58,7 @@ export type Database = {
           generated_at?: string | null
           id?: string
           paragraph_index?: number
+          runpod_job_id?: string | null
           status?: string
           text?: string
           total_chunks?: number

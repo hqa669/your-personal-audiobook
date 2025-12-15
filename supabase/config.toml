@@ -2,3 +2,6 @@ project_id = "hisqrjhsefbdlhnhzxdk"
 
 [functions.generate-chapter-audio]
 verify_jwt = true
+
+[functions.poll-audio-jobs]
+verify_jwt = true

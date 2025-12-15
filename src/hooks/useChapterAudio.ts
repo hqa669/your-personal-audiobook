@@ -9,7 +9,7 @@ interface AudioTrack {
   chunk_index: number;
   total_chunks: number;
   audio_url: string | null;
-  status: 'NOT_GENERATED' | 'GENERATING' | 'GENERATED';
+  status: 'NOT_GENERATED' | 'PENDING' | 'GENERATING' | 'GENERATED';
   estimated_duration_seconds: number;
   actual_duration_seconds: number | null;
 }
@@ -17,7 +17,8 @@ interface AudioTrack {
 const WORDS_PER_MINUTE = 160.0;
 const INITIAL_BUFFER_MINUTES = 5;
 const ROLLING_BUFFER_MINUTES = 15;
-const POLL_INTERVAL_MS = 10000;
+const POLL_INTERVAL_MS = 3000; // Faster polling since we're now checking job completion
+const JOB_POLL_INTERVAL_MS = 2000; // Poll for job completion
 
 /**
  * Estimate duration in seconds from text
@@ -129,12 +130,38 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     fetchAudioTracks();
   }, [fetchAudioTracks]);
 
+  // Poll RunPod jobs for completion
+  const pollAudioJobs = useCallback(async () => {
+    if (!bookId || !user) return;
+    if (chapterIndex !== activeChapterRef.current) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('poll-audio-jobs', {
+        body: { bookId, chapterIndex },
+      });
+
+      if (error) {
+        console.error('[useChapterAudio] Poll jobs error:', error);
+        return;
+      }
+
+      if (data?.completed > 0) {
+        console.log(`[useChapterAudio] ${data.completed} jobs completed`);
+        await fetchAudioTracks();
+      }
+
+      return data;
+    } catch (err) {
+      console.error('[useChapterAudio] Error polling jobs:', err);
+    }
+  }, [bookId, user, chapterIndex, fetchAudioTracks]);
+
   // Calculate future buffer duration
   const calculateFutureBuffer = useCallback((fromParagraphIndex: number): number => {
     let totalSeconds = 0;
     for (const track of audioTracks) {
       if (track.paragraph_index >= fromParagraphIndex) {
-        if (track.status === 'GENERATED' || track.status === 'GENERATING') {
+        if (track.status === 'GENERATED' || track.status === 'PENDING' || track.status === 'GENERATING') {
           totalSeconds += Number(track.estimated_duration_seconds);
         }
       }
@@ -142,7 +169,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     return totalSeconds / 60;
   }, [audioTracks]);
 
-  // Trigger audio generation for current chapter
+  // Trigger audio generation for current chapter (fire-and-forget)
   const generateChapterAudio = useCallback(async (targetMinutes: number = INITIAL_BUFFER_MINUTES) => {
     if (!bookId || !user || isGenerating) return;
 
@@ -155,51 +182,72 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     isGeneratingRef.current = true;
     abortControllerRef.current = new AbortController();
     
-    // Fast polling for auto-play
-    const fastPollInterval = setInterval(async () => {
+    // Poll for job completion - this replaces the old approach where edge function waited
+    const jobPollInterval = setInterval(async () => {
       if (chapterIndex !== activeChapterRef.current) {
-        clearInterval(fastPollInterval);
+        clearInterval(jobPollInterval);
         return;
       }
+      
+      // Poll RunPod for job completion
+      await pollAudioJobs();
+      
+      // Refresh tracks to get latest status
       await fetchAudioTracks();
-    }, 2000);
+      
+      // Check if any tracks are still pending
+      const currentTracks = audioTracksRef.current;
+      const hasPending = currentTracks.some(t => t.status === 'PENDING');
+      
+      if (!hasPending && currentTracks.length > 0) {
+        console.log('[useChapterAudio] All jobs completed, stopping poll');
+        clearInterval(jobPollInterval);
+        if (chapterIndex === activeChapterRef.current) {
+          setIsGenerating(false);
+          isGeneratingRef.current = false;
+        }
+      }
+    }, JOB_POLL_INTERVAL_MS);
 
     try {
+      // Submit jobs - this returns immediately
       const { data, error } = await supabase.functions.invoke('generate-chapter-audio', {
         body: { bookId, chapterIndex, targetDurationMinutes: targetMinutes },
       });
 
       if (chapterIndex !== activeChapterRef.current) {
         console.log('[useChapterAudio] Generation result ignored - chapter changed');
-        clearInterval(fastPollInterval);
+        clearInterval(jobPollInterval);
         return;
       }
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      if (data?.generated > 0) {
-        toast.success(`Generated ${data.generated} audio segments`, {
-          description: 'Audio is playing!',
+      if (data?.submitted > 0) {
+        toast.success(`Submitted ${data.submitted} audio jobs`, {
+          description: 'Generating audio...',
         });
+      } else if (data?.submitted === 0) {
+        // No new jobs needed - stop polling
+        clearInterval(jobPollInterval);
+        setIsGenerating(false);
+        isGeneratingRef.current = false;
       }
 
       await fetchAudioTracks();
     } catch (err) {
+      clearInterval(jobPollInterval);
       if (chapterIndex === activeChapterRef.current) {
         console.error('[useChapterAudio] Generation failed:', err);
         toast.error('Failed to generate audio', {
           description: err instanceof Error ? err.message : 'Please try again.',
         });
-      }
-    } finally {
-      clearInterval(fastPollInterval);
-      if (chapterIndex === activeChapterRef.current) {
         setIsGenerating(false);
         isGeneratingRef.current = false;
       }
     }
-  }, [bookId, user, chapterIndex, isGenerating, fetchAudioTracks]);
+  }, [bookId, user, chapterIndex, isGenerating, fetchAudioTracks, pollAudioJobs]);
 
   // Start background polling for buffer maintenance
   const startBufferPolling = useCallback(() => {
@@ -214,6 +262,8 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
         return;
       }
 
+      // Poll for job completion first
+      await pollAudioJobs();
       await fetchAudioTracks();
 
       const futureBuffer = calculateFutureBuffer(currentParagraphIndex);
@@ -224,7 +274,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
         await generateChapterAudio(ROLLING_BUFFER_MINUTES);
       }
     }, POLL_INTERVAL_MS);
-  }, [chapterIndex, fetchAudioTracks, calculateFutureBuffer, currentParagraphIndex, generateChapterAudio]);
+  }, [chapterIndex, fetchAudioTracks, pollAudioJobs, calculateFutureBuffer, currentParagraphIndex, generateChapterAudio]);
 
   // Stop polling
   const stopBufferPolling = useCallback(() => {
@@ -539,7 +589,8 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
 
   // Check if we have any generated audio for this chapter
   const hasGeneratedAudio = audioTracks.some(t => t.status === 'GENERATED');
-  const generatingCount = audioTracks.filter(t => t.status === 'GENERATING').length;
+  const pendingCount = audioTracks.filter(t => t.status === 'PENDING').length;
+  const generatingCount = audioTracks.filter(t => t.status === 'GENERATING' || t.status === 'PENDING').length;
   const generatedCount = audioTracks.filter(t => t.status === 'GENERATED').length;
   const totalChunks = audioTracks.length;
 
@@ -554,6 +605,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     duration,
     playbackRate,
     hasGeneratedAudio,
+    pendingCount,
     generatingCount,
     generatedCount,
     totalParagraphs: totalChunks,

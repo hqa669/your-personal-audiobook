@@ -19,8 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useBookReader } from '@/hooks/useBookReader';
-import { useAudioGeneration } from '@/hooks/useAudioGeneration';
-import { useAudioPlayback } from '@/hooks/useAudioPlayback';
+import { useChapterAudio } from '@/hooks/useChapterAudio';
 import { ChapterListSheet } from '@/components/ChapterListSheet';
 import { cn } from '@/lib/utils';
 
@@ -46,26 +45,26 @@ export default function Reader() {
     hasPrev,
   } = useBookReader(id);
 
-  const { generateAudio, isGenerating } = useAudioGeneration();
-  
   const {
     isPlaying,
     isLoading: isAudioLoading,
-    currentTrackIndex,
-    totalTracks,
+    isGenerating,
     playbackRate,
     togglePlay,
-    nextTrack,
-    prevTrack,
+    nextParagraph,
+    prevParagraph,
     changePlaybackRate,
-    hasAudioTracks,
-  } = useAudioPlayback(id);
+    generateChapterAudio,
+    hasGeneratedAudio,
+    generatedCount,
+    totalParagraphs,
+  } = useChapterAudio(id, chapterIndex);
 
   const speeds = [0.75, 1, 1.25, 1.5, 2];
 
-  // Is audio ready?
-  const hasAudio = book?.status === 'ready' || hasAudioTracks;
-  const isProcessing = book?.status === 'processing';
+  // Is audio ready for this chapter?
+  const hasAudio = hasGeneratedAudio;
+  const isProcessing = isGenerating;
 
   // Calculate reading progress percentage
   const progressPercent = totalChapters > 0 
@@ -292,14 +291,14 @@ export default function Reader() {
                       className="h-12 px-4 rounded-full gap-2"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (id) generateAudio(id);
+                        generateChapterAudio(5);
                       }}
                       disabled={isGenerating}
                     >
                       {isGenerating ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          Starting...
+                          Generating...
                         </>
                       ) : (
                         <>

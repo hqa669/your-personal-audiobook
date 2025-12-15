@@ -106,23 +106,25 @@ export function BookCard({ book, onClick, onDelete, showStatus = false, classNam
           
           {/* More menu */}
           {onDelete && (
-            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-              <DropdownMenuTrigger
-                onClick={(e) => e.stopPropagation()}
-                className="opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm hover:bg-background"
-              >
-                <MoreVertical className="w-3 h-3 text-foreground" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem
-                  onClick={handleDeleteClick}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Book
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                <DropdownMenuTrigger className="bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity">
+                  <MoreVertical className="w-3 h-3 text-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="z-50">
+                  <DropdownMenuItem
+                    onClick={handleDeleteClick}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Book
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
 

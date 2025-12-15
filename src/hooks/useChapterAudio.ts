@@ -42,6 +42,8 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activeChapterRef = useRef<number>(chapterIndex);
   const hasAutoPlayedRef = useRef<boolean>(false); // Track if auto-play has fired for this chapter
+  const audioTracksRef = useRef<AudioTrack[]>([]); // Ref for current tracks (avoids stale closure)
+  const isGeneratingRef = useRef<boolean>(false); // Ref for generating state
 
   // Abort all ongoing operations for the old chapter
   const abortCurrentOperations = useCallback(() => {
@@ -110,10 +112,12 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       // Verify chapter is still active before updating state
       if (chapterIndex !== activeChapterRef.current) return;
 
-      setAudioTracks((data || []).map(t => ({
+      const tracks = (data || []).map(t => ({
         ...t,
         status: t.status as AudioTrack['status'],
-      })));
+      }));
+      setAudioTracks(tracks);
+      audioTracksRef.current = tracks; // Keep ref in sync
     } catch (err) {
       console.error('[useChapterAudio] Error fetching tracks:', err);
     }
@@ -148,6 +152,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     }
 
     setIsGenerating(true);
+    isGeneratingRef.current = true;
     abortControllerRef.current = new AbortController();
     
     // Start fast polling to detect when first audio is ready (for auto-play)
@@ -199,6 +204,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       clearInterval(fastPollInterval);
       if (chapterIndex === activeChapterRef.current) {
         setIsGenerating(false);
+        isGeneratingRef.current = false;
       }
     }
   }, [bookId, user, chapterIndex, isGenerating, fetchAudioTracks]);
@@ -314,15 +320,39 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       audio.addEventListener('ended', () => {
         if (chapterIndex !== activeChapterRef.current) return;
 
-        // Auto-advance to next paragraph
+        // Auto-advance to next paragraph - use ref to get latest tracks
         const nextIndex = paragraphIndex + 1;
-        const nextTrack = audioTracks.find(t => t.paragraph_index === nextIndex);
+        const currentTracks = audioTracksRef.current;
+        const nextTrack = currentTracks.find(t => t.paragraph_index === nextIndex);
         
-        if (nextTrack && nextTrack.status === 'GENERATED') {
+        if (nextTrack && nextTrack.status === 'GENERATED' && nextTrack.audio_url) {
           setCurrentParagraphIndex(nextIndex);
           loadParagraph(nextIndex);
         } else {
-          setIsPlaying(false);
+          // Next track not ready yet - if still generating, wait for it
+          if (isGeneratingRef.current) {
+            console.log('[useChapterAudio] Next track not ready yet, waiting...');
+            // Set up a watcher to auto-continue when next track becomes available
+            const checkInterval = setInterval(() => {
+              if (chapterIndex !== activeChapterRef.current) {
+                clearInterval(checkInterval);
+                return;
+              }
+              const latestTracks = audioTracksRef.current;
+              const latestNextTrack = latestTracks.find(t => t.paragraph_index === nextIndex);
+              if (latestNextTrack && latestNextTrack.status === 'GENERATED' && latestNextTrack.audio_url) {
+                clearInterval(checkInterval);
+                setCurrentParagraphIndex(nextIndex);
+                loadParagraph(nextIndex);
+              } else if (!isGeneratingRef.current) {
+                // Generation finished but track still not ready - stop waiting
+                clearInterval(checkInterval);
+                setIsPlaying(false);
+              }
+            }, 1000);
+          } else {
+            setIsPlaying(false);
+          }
         }
       });
 

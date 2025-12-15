@@ -410,10 +410,13 @@ create policy "Users can upload covers"
 - [ ] Auto-save playback position
 - [ ] Resume from last position
 
-### 6.3 Dual Mode (Pending Phase 5)
+### 6.3 Dual Mode
 - [ ] Text + audio synchronized view
 - [ ] Auto-scroll text with audio (optional)
-- [ ] Visual indicator of current section
+- [x] Visual indicator of current paragraph (highlight syncs with audio playback)
+
+### 6.4 Bug Fixes
+- [x] Fix chapter index alignment between reader and audio (edge function now uses same filtering logic as frontend)
 
 **Files created:**
 - `src/lib/epub-chapter-parser.ts` - EPUB chapter extraction

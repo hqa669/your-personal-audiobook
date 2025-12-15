@@ -58,6 +58,7 @@ export default function Reader() {
     hasGeneratedAudio,
     generatedCount,
     totalParagraphs,
+    currentParagraphIndex,
   } = useChapterAudio(id, chapterIndex);
 
   const speeds = [0.75, 1, 1.25, 1.5, 2];
@@ -159,20 +160,33 @@ export default function Reader() {
             </motion.h2>
             
             {/* Chapter content */}
-            {currentChapter.content.split('\n\n').filter(p => p.trim()).map((paragraph, index) => (
-              <motion.p
-                key={index}
-                initial={{ opacity: 0.3 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: Math.min(index * 0.02, 0.5), duration: 0.3 }}
-                className={cn(
-                  "mb-6",
-                  isDarkMode ? "text-slate-200" : "text-foreground/90"
-                )}
-              >
-                {paragraph}
-              </motion.p>
-            ))}
+            {currentChapter.content.split('\n\n').filter(p => p.trim()).map((paragraph, index) => {
+              const isCurrentParagraph = hasGeneratedAudio && isPlaying && currentParagraphIndex === index;
+              return (
+                <motion.p
+                  key={index}
+                  initial={{ opacity: 0.3 }}
+                  animate={{ 
+                    opacity: 1,
+                    backgroundColor: isCurrentParagraph 
+                      ? (isDarkMode ? 'rgba(162, 123, 92, 0.15)' : 'rgba(162, 123, 92, 0.1)')
+                      : 'transparent'
+                  }}
+                  transition={{ 
+                    delay: Math.min(index * 0.02, 0.5), 
+                    duration: 0.3,
+                    backgroundColor: { duration: 0.3 }
+                  }}
+                  className={cn(
+                    "mb-6 px-2 -mx-2 py-1 rounded-lg transition-colors",
+                    isDarkMode ? "text-slate-200" : "text-foreground/90",
+                    isCurrentParagraph && "ring-1 ring-primary/30"
+                  )}
+                >
+                  {paragraph}
+                </motion.p>
+              );
+            })}
             
             {/* Chapter navigation at bottom */}
             <div className="flex justify-between items-center mt-12 pt-8 border-t border-border/50">

@@ -102,47 +102,69 @@ async function parseEpubParagraphs(
 
   const opfPath = rootfileMatch[1];
   const opfDir = opfPath.substring(0, opfPath.lastIndexOf("/") + 1);
+  console.log(`[generate-audio] OPF path: ${opfPath}, dir: ${opfDir}`);
 
   // Parse OPF
   const opfContent = await zip.file(opfPath)?.async("text");
   if (!opfContent) throw new Error("Invalid EPUB: Missing OPF file");
 
-  // Simple XML parsing (Deno doesn't have DOMParser in edge)
+  // Extract spine itemrefs
   const spineItemRefs: string[] = [];
-  const spineMatches = opfContent.matchAll(/itemref\s+idref="([^"]+)"/g);
+  const spineMatches = opfContent.matchAll(/itemref[^>]*idref="([^"]+)"/g);
   for (const match of spineMatches) {
     spineItemRefs.push(match[1]);
   }
+  console.log(`[generate-audio] Found ${spineItemRefs.length} spine items`);
 
-  // Build manifest map
+  // Build manifest map - handle any attribute order
   const manifestMap = new Map<string, string>();
-  const manifestMatches = opfContent.matchAll(
-    /<item[^>]+id="([^"]+)"[^>]+href="([^"]+)"/g
-  );
-  for (const match of manifestMatches) {
-    manifestMap.set(match[1], match[2]);
+  const itemMatches = opfContent.matchAll(/<item\s+([^>]+)>/g);
+  for (const match of itemMatches) {
+    const attrs = match[1];
+    const idMatch = attrs.match(/id="([^"]+)"/);
+    const hrefMatch = attrs.match(/href="([^"]+)"/);
+    if (idMatch && hrefMatch) {
+      manifestMap.set(idMatch[1], hrefMatch[1]);
+    }
   }
+  console.log(`[generate-audio] Found ${manifestMap.size} manifest items`);
 
   const paragraphs: { chapterIndex: number; paragraphIndex: number; text: string }[] = [];
 
   for (let chapterIdx = 0; chapterIdx < spineItemRefs.length; chapterIdx++) {
     const idref = spineItemRefs[chapterIdx];
     const href = manifestMap.get(idref);
-    if (!href) continue;
+    if (!href) {
+      console.log(`[generate-audio] No href found for idref: ${idref}`);
+      continue;
+    }
 
     const fullPath = opfDir + href;
     const content = await zip.file(fullPath)?.async("text");
-    if (!content) continue;
+    if (!content) {
+      console.log(`[generate-audio] No content found at: ${fullPath}`);
+      continue;
+    }
 
-    // Extract text from paragraph tags (simple regex approach for edge function)
+    // Extract text from paragraph tags
     const paragraphMatches = content.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi);
     let paragraphIdx = 0;
 
     for (const match of paragraphMatches) {
-      // Strip HTML tags
-      const text = match[1].replace(/<[^>]+>/g, "").trim();
-      if (text.length > 10) {
-        // Only meaningful paragraphs
+      // Strip HTML tags and decode entities
+      let text = match[1]
+        .replace(/<[^>]+>/g, "") // Remove HTML tags
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+        .replace(/\s+/g, " ") // Normalize whitespace
+        .trim();
+
+      if (text.length > 20) {
+        // Only meaningful paragraphs (increased minimum)
         paragraphs.push({
           chapterIndex: chapterIdx,
           paragraphIndex: paragraphIdx,
@@ -151,6 +173,8 @@ async function parseEpubParagraphs(
         paragraphIdx++;
       }
     }
+    
+    console.log(`[generate-audio] Chapter ${chapterIdx}: found ${paragraphIdx} paragraphs`);
   }
 
   return paragraphs;

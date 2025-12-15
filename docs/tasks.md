@@ -375,6 +375,20 @@ create policy "Users can upload covers"
 - `src/hooks/useChapterAudio.ts` - Chapter audio management hook
 - Deleted old `useAudioGeneration.ts` and `useAudioPlayback.ts`
 
+### 5.6 Book Deletion (Atomic Cleanup) ✅
+- [x] Delete confirmation dialog with explicit warning
+- [x] Abort active TTS generation on delete
+- [x] Delete all audio files from storage
+- [x] Delete audio track records
+- [x] Delete playback progress
+- [x] Delete EPUB file from storage
+- [x] Delete cover image from storage
+- [x] Delete book record
+- [x] Context menu on BookCard with delete option
+
+**Files created:**
+- `src/components/DeleteBookDialog.tsx` - Delete confirmation dialog
+
 ---
 
 ## Phase 6: Reader Page ✅ COMPLETE

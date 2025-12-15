@@ -1,7 +1,14 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Loader2, Plus, AlertCircle } from 'lucide-react';
+import { Play, Loader2, Plus, AlertCircle, Trash2, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserBook } from '@/hooks/useBooks';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 // Color palette for books without covers
 const coverColors = [
@@ -24,22 +31,36 @@ function getColorForBook(title: string): string {
 interface BookCardProps {
   book: UserBook;
   onClick?: () => void;
+  onDelete?: () => void;
   showStatus?: boolean;
   className?: string;
 }
 
-export function BookCard({ book, onClick, showStatus = false, className }: BookCardProps) {
+export function BookCard({ book, onClick, onDelete, showStatus = false, className }: BookCardProps) {
   const coverColor = getColorForBook(book.title);
+  const [menuOpen, setMenuOpen] = useState(false);
+  
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't trigger onClick if menu is open or clicking on menu
+    if (menuOpen) return;
+    onClick?.();
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    onDelete?.();
+  };
   
   return (
     <motion.div
       whileHover={{ scale: 1.02, y: -4 }}
       whileTap={{ scale: 0.98 }}
       className={cn(
-        "book-card cursor-pointer flex-shrink-0 w-40 md:w-48 group",
+        "book-card cursor-pointer flex-shrink-0 w-40 md:w-48 group relative",
         className
       )}
-      onClick={onClick}
+      onClick={handleCardClick}
     >
       <div className={cn(
         "aspect-[2/3] rounded-xl flex items-center justify-center relative overflow-hidden",
@@ -61,27 +82,49 @@ export function BookCard({ book, onClick, showStatus = false, className }: BookC
           </div>
         )}
 
-        {/* Status indicator */}
-        {showStatus && book.status && (
-          <div className="absolute top-2 right-2">
-            {/* 'uploaded' and 'ready' both show play icon (readable) */}
-            {(book.status === 'ready' || book.status === 'uploaded') && (
-              <div className="bg-success text-success-foreground p-1.5 rounded-full shadow-sm">
-                <Play className="w-3 h-3" />
-              </div>
-            )}
-            {book.status === 'processing' && (
-              <div className="bg-amber-500 text-white p-1.5 rounded-full shadow-sm">
-                <Loader2 className="w-3 h-3 animate-spin" />
-              </div>
-            )}
-            {book.status === 'failed' && (
-              <div className="bg-destructive text-destructive-foreground p-1.5 rounded-full shadow-sm">
-                <AlertCircle className="w-3 h-3" />
-              </div>
-            )}
-          </div>
-        )}
+        {/* Status indicator and menu */}
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {showStatus && book.status && (
+            <>
+              {(book.status === 'ready' || book.status === 'uploaded') && (
+                <div className="bg-success text-success-foreground p-1.5 rounded-full shadow-sm">
+                  <Play className="w-3 h-3" />
+                </div>
+              )}
+              {book.status === 'processing' && (
+                <div className="bg-amber-500 text-white p-1.5 rounded-full shadow-sm">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                </div>
+              )}
+              {book.status === 'failed' && (
+                <div className="bg-destructive text-destructive-foreground p-1.5 rounded-full shadow-sm">
+                  <AlertCircle className="w-3 h-3" />
+                </div>
+              )}
+            </>
+          )}
+          
+          {/* More menu */}
+          {onDelete && (
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger
+                onClick={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm hover:bg-background"
+              >
+                <MoreVertical className="w-3 h-3 text-foreground" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem
+                  onClick={handleDeleteClick}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Book
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
 
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors duration-300 flex items-center justify-center">

@@ -367,6 +367,13 @@ create policy "Users can upload covers"
 - [x] Background polling for buffer maintenance
 - [x] Signed URL caching
 - [x] Auto-advance to next paragraph on completion
+- [x] **Continuous 15-minute buffer loop** (v5):
+  - [x] `ensureBuffer()` runs continuously every 5 seconds
+  - [x] Calculates future buffer from current playback position
+  - [x] Includes GENERATED + PENDING + GENERATING in buffer calculation
+  - [x] Uses refs to avoid stale closures (`currentParagraphIndexRef`, `audioTracksRef`)
+  - [x] Triggers generation only when buffer < 15 min AND no pending jobs
+  - [x] Re-runs on tab visibility change
 
 ### 5.5 UI Integration ✅
 - [x] "Generate Voice" button triggers chapter-scoped generation

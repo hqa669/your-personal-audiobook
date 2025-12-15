@@ -327,9 +327,9 @@ create policy "Users can upload covers"
 
 ---
 
-## Phase 5: AI Voice Generation
+## Phase 5: AI Voice Generation ✅ COMPLETE
 
-### 5.1 Edge Function: `generate-audio`
+### 5.1 Edge Function: `generate-audio` ✅
 ```typescript
 // supabase/functions/generate-audio/index.ts
 // Triggers RunPod TTS API
@@ -345,21 +345,25 @@ create policy "Users can upload covers"
 // 6. Update book status to 'ready'
 ```
 
-- [ ] Create edge function scaffold
-- [ ] Add RUNPOD_API_KEY secret
-- [ ] Implement RunPod API call
-- [ ] Handle audio file storage
-- [ ] Update book status on completion/failure
-- [ ] Add error handling and retries
+- [x] Create edge function scaffold
+- [x] Add RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID secrets
+- [x] Implement RunPod API call (submit job + poll for completion)
+- [x] Handle audio file storage (one WAV per paragraph)
+- [x] Update book status on completion/failure
+- [x] Background processing with EdgeRuntime.waitUntil()
 
-### 5.2 UI Integration
-- [ ] Update `BookDetailModal.tsx` with "Generate AI Voice" button
-- [ ] Show generation status (loading animation)
-- [ ] Disable button during processing
-- [ ] Show success state when complete
-- [ ] Add "Play" button when audio ready
+### 5.2 UI Integration ✅
+- [x] Add "Generate Voice" button in Reader page footer
+- [x] Show generation status (loading animation)
+- [x] Disable button during processing
+- [x] Show play button when audio ready
+- [x] Created `useAudioGeneration` hook
 
-**Reference file:** `src/components/BookDetailModal.tsx`
+**Files created:**
+- `supabase/functions/generate-audio/index.ts` - Edge function for TTS generation
+- `src/hooks/useAudioGeneration.ts` - Hook for triggering generation
+
+**Note:** Audio playback functionality (Phase 6.2) is pending - play button shows but playback logic needs implementation.
 
 ---
 

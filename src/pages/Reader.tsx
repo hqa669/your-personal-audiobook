@@ -13,11 +13,14 @@ import {
   Volume2,
   ChevronLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  Mic,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useBookReader } from '@/hooks/useBookReader';
+import { useAudioGeneration } from '@/hooks/useAudioGeneration';
 import { ChapterListSheet } from '@/components/ChapterListSheet';
 import { cn } from '@/lib/utils';
 
@@ -45,7 +48,13 @@ export default function Reader() {
     hasPrev,
   } = useBookReader(id);
 
+  const { generateAudio, isGenerating } = useAudioGeneration();
+
   const speeds = [0.75, 1, 1.25, 1.5, 2];
+
+  // Is audio ready?
+  const hasAudio = book?.status === 'ready';
+  const isProcessing = book?.status === 'processing';
 
   // Calculate reading progress percentage
   const progressPercent = totalChapters > 0 
@@ -250,7 +259,7 @@ export default function Reader() {
                   </Button>
                 </div>
 
-                {/* Center - Play controls (disabled until Phase 5) */}
+                {/* Center - Play controls or Generate Voice button */}
                 <div className="flex items-center gap-2">
                   <Button 
                     variant="ghost" 
@@ -264,15 +273,58 @@ export default function Reader() {
                   >
                     <SkipBack className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="warm"
-                    size="icon"
-                    className="w-14 h-14 rounded-full opacity-50 cursor-not-allowed"
-                    disabled
-                    title="Audio coming soon"
-                  >
-                    <Play className="w-6 h-6 ml-0.5" />
-                  </Button>
+                  
+                  {/* Show different button based on book status */}
+                  {!hasAudio && !isProcessing ? (
+                    <Button
+                      variant="warm"
+                      className="h-12 px-4 rounded-full gap-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (id) generateAudio(id);
+                      }}
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Starting...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Generate Voice
+                        </>
+                      )}
+                    </Button>
+                  ) : isProcessing ? (
+                    <Button
+                      variant="warm"
+                      className="h-12 px-4 rounded-full gap-2 opacity-80"
+                      disabled
+                    >
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generating...
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="warm"
+                      size="icon"
+                      className="w-14 h-14 rounded-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsPlaying(!isPlaying);
+                      }}
+                      title={isPlaying ? "Pause" : "Play"}
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-6 h-6" />
+                      ) : (
+                        <Play className="w-6 h-6 ml-0.5" />
+                      )}
+                    </Button>
+                  )}
+                  
                   <Button 
                     variant="ghost" 
                     size="icon" 
@@ -287,21 +339,27 @@ export default function Reader() {
                   </Button>
                 </div>
 
-                {/* Right - Speed & Voice (disabled until Phase 5) */}
+                {/* Right - Speed & Voice */}
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs px-2 opacity-50"
-                    disabled
+                    className={cn("text-xs px-2", !hasAudio && "opacity-50")}
+                    disabled={!hasAudio}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const currentIdx = speeds.indexOf(playbackSpeed);
+                      const nextIdx = (currentIdx + 1) % speeds.length;
+                      setPlaybackSpeed(speeds[nextIdx]);
+                    }}
                   >
                     {playbackSpeed}x
                   </Button>
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="w-10 h-10 opacity-50"
-                    disabled
+                    className={cn("w-10 h-10", !hasAudio && "opacity-50")}
+                    disabled={!hasAudio}
                   >
                     <Volume2 className="w-4 h-4" />
                   </Button>

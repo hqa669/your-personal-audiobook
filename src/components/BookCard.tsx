@@ -41,7 +41,8 @@ export function BookCard({ book, onClick, onDelete, showStatus = false, classNam
   const [menuOpen, setMenuOpen] = useState(false);
   
   const handleCardClick = (e: React.MouseEvent) => {
-    // Don't trigger onClick if menu is open or clicking on menu
+    // Safety guard: don't navigate if clicking on menu
+    if ((e.target as HTMLElement).closest('.menu-button')) return;
     if (menuOpen) return;
     onClick?.();
   };
@@ -101,35 +102,32 @@ export function BookCard({ book, onClick, onDelete, showStatus = false, classNam
           
           {/* More menu */}
           {onDelete && (
-            <div
-              onClickCapture={(e) => e.stopPropagation()}
-              onPointerDownCapture={(e) => e.stopPropagation()}
-              onMouseDownCapture={(e) => e.stopPropagation()}
-            >
-              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <MoreVertical className="w-3 h-3 text-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="z-50">
-                  <DropdownMenuItem
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      onDelete?.();
-                      setMenuOpen(false);
-                    }}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete Book
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="menu-button bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  <MoreVertical className="w-3 h-3 text-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-50">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete?.();
+                    setMenuOpen(false);
+                  }}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Book
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 

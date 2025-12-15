@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -14,23 +14,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Mic,
   Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useBookReader } from '@/hooks/useBookReader';
 import { useAudioGeneration } from '@/hooks/useAudioGeneration';
+import { useAudioPlayback } from '@/hooks/useAudioPlayback';
 import { ChapterListSheet } from '@/components/ChapterListSheet';
 import { cn } from '@/lib/utils';
 
 export default function Reader() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [isPlaying, setIsPlaying] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [fontSize, setFontSize] = useState(18);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showControls, setShowControls] = useState(true);
 
   const {
@@ -49,11 +47,24 @@ export default function Reader() {
   } = useBookReader(id);
 
   const { generateAudio, isGenerating } = useAudioGeneration();
+  
+  const {
+    isPlaying,
+    isLoading: isAudioLoading,
+    currentTrackIndex,
+    totalTracks,
+    playbackRate,
+    togglePlay,
+    nextTrack,
+    prevTrack,
+    changePlaybackRate,
+    hasAudioTracks,
+  } = useAudioPlayback(id);
 
   const speeds = [0.75, 1, 1.25, 1.5, 2];
 
   // Is audio ready?
-  const hasAudio = book?.status === 'ready';
+  const hasAudio = book?.status === 'ready' || hasAudioTracks;
   const isProcessing = book?.status === 'processing';
 
   // Calculate reading progress percentage
@@ -313,11 +324,14 @@ export default function Reader() {
                       className="w-14 h-14 rounded-full"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setIsPlaying(!isPlaying);
+                        togglePlay();
                       }}
+                      disabled={isAudioLoading}
                       title={isPlaying ? "Pause" : "Play"}
                     >
-                      {isPlaying ? (
+                      {isAudioLoading ? (
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      ) : isPlaying ? (
                         <Pause className="w-6 h-6" />
                       ) : (
                         <Play className="w-6 h-6 ml-0.5" />
@@ -348,12 +362,12 @@ export default function Reader() {
                     disabled={!hasAudio}
                     onClick={(e) => {
                       e.stopPropagation();
-                      const currentIdx = speeds.indexOf(playbackSpeed);
+                      const currentIdx = speeds.indexOf(playbackRate);
                       const nextIdx = (currentIdx + 1) % speeds.length;
-                      setPlaybackSpeed(speeds[nextIdx]);
+                      changePlaybackRate(speeds[nextIdx]);
                     }}
                   >
-                    {playbackSpeed}x
+                    {playbackRate}x
                   </Button>
                   <Button 
                     variant="ghost" 

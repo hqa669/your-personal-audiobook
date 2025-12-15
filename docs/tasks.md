@@ -446,6 +446,7 @@ create policy "Users can upload covers"
 ## Phase 8: Polish & Accessibility
 
 ### 8.1 UX Polish
+- [x] Fix BookCard menu click/pointer propagation (prevent accidental navigation)
 - [ ] Loading skeletons for book cards
 - [ ] Empty state illustrations
 - [ ] Error boundary components

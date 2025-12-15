@@ -41,6 +41,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
   const abortControllerRef = useRef<AbortController | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activeChapterRef = useRef<number>(chapterIndex);
+  const hasAutoPlayedRef = useRef<boolean>(false); // Track if auto-play has fired for this chapter
 
   // Abort all ongoing operations for the old chapter
   const abortCurrentOperations = useCallback(() => {
@@ -73,6 +74,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     setCurrentTime(0);
     setDuration(0);
     signedUrlsRef.current.clear();
+    hasAutoPlayedRef.current = false; // Reset auto-play flag
   }, []);
 
   // Handle chapter changes - abort old chapter and reset
@@ -81,6 +83,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       console.log('[useChapterAudio] Chapter changed from', activeChapterRef.current, 'to', chapterIndex);
       abortCurrentOperations();
       activeChapterRef.current = chapterIndex;
+      hasAutoPlayedRef.current = false; // Reset auto-play for new chapter
     }
   }, [chapterIndex, abortCurrentOperations]);
 
@@ -146,6 +149,16 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
 
     setIsGenerating(true);
     abortControllerRef.current = new AbortController();
+    
+    // Start fast polling to detect when first audio is ready (for auto-play)
+    // This runs every 2 seconds to quickly pick up newly generated tracks
+    const fastPollInterval = setInterval(async () => {
+      if (chapterIndex !== activeChapterRef.current) {
+        clearInterval(fastPollInterval);
+        return;
+      }
+      await fetchAudioTracks();
+    }, 2000);
 
     try {
       const { data, error } = await supabase.functions.invoke('generate-chapter-audio', {
@@ -155,6 +168,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       // Check if aborted or chapter changed
       if (chapterIndex !== activeChapterRef.current) {
         console.log('[useChapterAudio] Generation result ignored - chapter changed');
+        clearInterval(fastPollInterval);
         return;
       }
 
@@ -168,11 +182,11 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
 
       if (data?.generated > 0) {
         toast.success(`Generated ${data.generated} audio segments`, {
-          description: 'Your audiobook is ready to play!',
+          description: 'Audio is playing!',
         });
       }
 
-      // Refresh tracks
+      // Final refresh to get all tracks
       await fetchAudioTracks();
     } catch (err) {
       if (chapterIndex === activeChapterRef.current) {
@@ -182,6 +196,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
         });
       }
     } finally {
+      clearInterval(fastPollInterval);
       if (chapterIndex === activeChapterRef.current) {
         setIsGenerating(false);
       }
@@ -335,6 +350,37 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       return false;
     }
   }, [audioTracks, chapterIndex, getSignedUrl, playbackRate]);
+
+  // Auto-play when first paragraph's audio becomes available
+  // This creates a streaming-like experience: click Generate → audio starts automatically
+  useEffect(() => {
+    // Only trigger during active generation
+    if (!isGenerating) return;
+    
+    // Only trigger once per chapter
+    if (hasAutoPlayedRef.current) return;
+    
+    // Verify this is still the active chapter
+    if (chapterIndex !== activeChapterRef.current) return;
+    
+    // Don't auto-play if already playing
+    if (isPlaying) return;
+    
+    // Find the first generated paragraph (index 0 ideally, but accept first available)
+    const firstGeneratedTrack = audioTracks.find(t => t.status === 'GENERATED' && t.audio_url);
+    
+    if (firstGeneratedTrack) {
+      console.log('[useChapterAudio] Auto-play triggered - first audio ready at paragraph', firstGeneratedTrack.paragraph_index);
+      hasAutoPlayedRef.current = true;
+      
+      // Start playback and polling
+      loadParagraph(firstGeneratedTrack.paragraph_index).then((success) => {
+        if (success && chapterIndex === activeChapterRef.current) {
+          startBufferPolling();
+        }
+      });
+    }
+  }, [audioTracks, isGenerating, isPlaying, chapterIndex, loadParagraph, startBufferPolling]);
 
   // Play/Pause toggle
   const togglePlay = useCallback(async () => {

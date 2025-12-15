@@ -1,4 +1,4 @@
 project_id = "hisqrjhsefbdlhnhzxdk"
 
-[functions.generate-audio]
-verify_jwt = false
+[functions.generate-chapter-audio]
+verify_jwt = true

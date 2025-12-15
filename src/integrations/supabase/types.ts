@@ -16,28 +16,43 @@ export type Database = {
     Tables: {
       audio_tracks: {
         Row: {
-          audio_url: string
+          actual_duration_seconds: number | null
+          audio_url: string | null
           book_id: string
-          duration_seconds: number | null
-          generated_at: string
+          chapter_index: number
+          created_at: string
+          estimated_duration_seconds: number
+          generated_at: string | null
           id: string
-          voice_type: string | null
+          paragraph_index: number
+          status: string
+          text: string
         }
         Insert: {
-          audio_url: string
+          actual_duration_seconds?: number | null
+          audio_url?: string | null
           book_id: string
-          duration_seconds?: number | null
-          generated_at?: string
+          chapter_index: number
+          created_at?: string
+          estimated_duration_seconds: number
+          generated_at?: string | null
           id?: string
-          voice_type?: string | null
+          paragraph_index: number
+          status?: string
+          text: string
         }
         Update: {
-          audio_url?: string
+          actual_duration_seconds?: number | null
+          audio_url?: string | null
           book_id?: string
-          duration_seconds?: number | null
-          generated_at?: string
+          chapter_index?: number
+          created_at?: string
+          estimated_duration_seconds?: number
+          generated_at?: string | null
           id?: string
-          voice_type?: string | null
+          paragraph_index?: number
+          status?: string
+          text?: string
         }
         Relationships: [
           {

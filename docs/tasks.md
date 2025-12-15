@@ -327,43 +327,44 @@ create policy "Users can upload covers"
 
 ---
 
-## Phase 5: AI Voice Generation ✅ COMPLETE
+## Phase 5: AI Voice Generation ✅ COMPLETE (v2 - Chapter-Scoped Streaming)
 
-### 5.1 Edge Function: `generate-audio` ✅
-```typescript
-// supabase/functions/generate-audio/index.ts
-// Triggers RunPod TTS API
-// Input: book_id, epub_url
-// Output: audio_url stored in audio_tracks table
+### 5.1 Edge Function: `generate-chapter-audio` ✅
+- [x] Chapter-scoped generation (not whole book)
+- [x] Duration estimation at 160 WPM
+- [x] Initial 5-minute buffer generation
+- [x] 15-minute rolling buffer with 10-second polling
+- [x] Paragraph state machine (NOT_GENERATED, GENERATING, GENERATED)
+- [x] Idempotent - never generates same paragraph twice
+- [x] Instant abort on chapter switch
 
-// Key steps:
-// 1. Validate book belongs to user
-// 2. Update book status to 'processing'
-// 3. Call RunPod TTS API
-// 4. Upload audio to storage
-// 5. Create audio_track record
-// 6. Update book status to 'ready'
-```
+### 5.2 Database Schema Updates ✅
+- [x] Updated `audio_tracks` table with:
+  - `chapter_index` - chapter scoping
+  - `paragraph_index` - paragraph ordering
+  - `text` - paragraph text
+  - `estimated_duration_seconds` - pre-generation estimate
+  - `actual_duration_seconds` - post-generation actual
+  - `status` - state machine (NOT_GENERATED, GENERATING, GENERATED)
+  - Unique constraint on (book_id, chapter_index, paragraph_index)
 
-- [x] Create edge function scaffold
-- [x] Add RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID secrets
-- [x] Implement RunPod API call (submit job + poll for completion)
-- [x] Handle audio file storage (one WAV per paragraph)
-- [x] Update book status on completion/failure
-- [x] Background processing with EdgeRuntime.waitUntil()
+### 5.3 Hook: `useChapterAudio` ✅
+- [x] Chapter-scoped audio management
+- [x] AbortController for chapter switch interruption
+- [x] Background polling for buffer maintenance
+- [x] Signed URL caching
+- [x] Auto-advance to next paragraph on completion
 
-### 5.2 UI Integration ✅
-- [x] Add "Generate Voice" button in Reader page footer
-- [x] Show generation status (loading animation)
-- [x] Disable button during processing
-- [x] Show play button when audio ready
-- [x] Created `useAudioGeneration` hook
+### 5.4 UI Integration ✅
+- [x] "Generate Voice" button triggers chapter-scoped generation
+- [x] Loading state during generation
+- [x] Play/pause controls
+- [x] Playback speed control
 
-**Files created:**
-- `supabase/functions/generate-audio/index.ts` - Edge function for TTS generation
-- `src/hooks/useAudioGeneration.ts` - Hook for triggering generation
-
-**Note:** Audio playback functionality (Phase 6.2) is pending - play button shows but playback logic needs implementation.
+**Files created/updated:**
+- `supabase/functions/generate-chapter-audio/index.ts` - Chapter-scoped edge function
+- `src/hooks/useChapterAudio.ts` - Chapter audio management hook
+- Deleted old `useAudioGeneration.ts` and `useAudioPlayback.ts`
 
 ---
 

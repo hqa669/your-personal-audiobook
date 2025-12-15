@@ -271,9 +271,11 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
 
   // Load and play a specific paragraph
   const loadParagraph = useCallback(async (paragraphIndex: number) => {
-    const track = audioTracks.find(t => t.paragraph_index === paragraphIndex);
+    // Use ref to get latest tracks (avoids stale closure when called from event listeners)
+    const currentTracks = audioTracksRef.current;
+    const track = currentTracks.find(t => t.paragraph_index === paragraphIndex);
     if (!track || track.status !== 'GENERATED' || !track.audio_url) {
-      console.log('[useChapterAudio] Track not ready:', paragraphIndex);
+      console.log('[useChapterAudio] Track not ready:', paragraphIndex, 'status:', track?.status);
       return false;
     }
 
@@ -379,7 +381,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       }
       return false;
     }
-  }, [audioTracks, chapterIndex, getSignedUrl, playbackRate]);
+  }, [chapterIndex, getSignedUrl, playbackRate]);
 
   // Auto-play when first paragraph's audio becomes available
   // This creates a streaming-like experience: click Generate → audio starts automatically

@@ -372,7 +372,36 @@ async function generateParagraphAudio(text: string): Promise<Uint8Array> {
 }
 
 /**
+ * Extract text content from HTML, matching frontend logic
+ */
+function extractTextFromHtml(html: string): string {
+  // Match block-level elements (p, h1-h6, div, blockquote)
+  const blockMatches = html.matchAll(/<(p|h[1-6]|div|blockquote)[^>]*>([\s\S]*?)<\/\1>/gi);
+  const paragraphs: string[] = [];
+  
+  for (const match of blockMatches) {
+    let text = match[2]
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+      .replace(/\s+/g, " ")
+      .trim();
+    
+    if (text.length > 0) {
+      paragraphs.push(text);
+    }
+  }
+  
+  return paragraphs.join("\n\n");
+}
+
+/**
  * Parse EPUB and extract paragraphs for a specific chapter
+ * Uses the same chapter filtering logic as the frontend to ensure index alignment
  */
 async function parseChapterParagraphs(
   epubArrayBuffer: ArrayBuffer,
@@ -399,10 +428,6 @@ async function parseChapterParagraphs(
     spineItemRefs.push(match[1]);
   }
 
-  if (targetChapterIndex >= spineItemRefs.length) {
-    throw new Error(`Chapter ${targetChapterIndex} not found`);
-  }
-
   // Build manifest map
   const manifestMap = new Map<string, string>();
   const itemMatches = opfContent.matchAll(/<item\s+([^>]+)>/g);
@@ -415,10 +440,41 @@ async function parseChapterParagraphs(
     }
   }
 
-  // Get specific chapter content
-  const idref = spineItemRefs[targetChapterIndex];
+  // Iterate through spine items and find the actual chapter at targetChapterIndex
+  // This matches frontend logic: only count chapters that have meaningful content
+  let validChapterCount = 0;
+  let actualSpineIndex = -1;
+
+  for (let i = 0; i < spineItemRefs.length; i++) {
+    const idref = spineItemRefs[i];
+    const href = manifestMap.get(idref);
+    if (!href) continue;
+
+    const fullPath = opfDir + href;
+    const content = await zip.file(fullPath)?.async("text");
+    if (!content) continue;
+
+    // Extract text content using the same logic as frontend
+    const textContent = extractTextFromHtml(content);
+    
+    // Only count chapters with meaningful content (matches frontend)
+    if (textContent.trim()) {
+      if (validChapterCount === targetChapterIndex) {
+        actualSpineIndex = i;
+        break;
+      }
+      validChapterCount++;
+    }
+  }
+
+  if (actualSpineIndex === -1) {
+    throw new Error(`Chapter ${targetChapterIndex} not found (only ${validChapterCount} valid chapters)`);
+  }
+
+  // Now get the content from the correct spine item
+  const idref = spineItemRefs[actualSpineIndex];
   const href = manifestMap.get(idref);
-  if (!href) throw new Error(`No href found for chapter ${targetChapterIndex}`);
+  if (!href) throw new Error(`No href found for chapter at spine index ${actualSpineIndex}`);
 
   const fullPath = opfDir + href;
   const content = await zip.file(fullPath)?.async("text");

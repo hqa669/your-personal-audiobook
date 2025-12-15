@@ -338,7 +338,16 @@ create policy "Users can upload covers"
 - [x] Idempotent - never generates same paragraph twice
 - [x] Instant abort on chapter switch
 
-### 5.2 Database Schema Updates ✅
+### 5.2 Token-Safe Paragraph Chunking ✅
+- [x] 400 token limit detection (conservative 4 chars/token estimate)
+- [x] Sentence-aware splitting (preserves complete sentences)
+- [x] Secondary punctuation fallback (comma, semicolon)
+- [x] Hard split as last resort for extremely long sentences
+- [x] WAV audio concatenation for multi-chunk paragraphs
+- [x] Atomic paragraph state (partial chunks never exposed)
+- [x] Abort-safe during chunk generation
+
+### 5.3 Database Schema Updates ✅
 - [x] Updated `audio_tracks` table with:
   - `chapter_index` - chapter scoping
   - `paragraph_index` - paragraph ordering
@@ -348,21 +357,21 @@ create policy "Users can upload covers"
   - `status` - state machine (NOT_GENERATED, GENERATING, GENERATED)
   - Unique constraint on (book_id, chapter_index, paragraph_index)
 
-### 5.3 Hook: `useChapterAudio` ✅
+### 5.4 Hook: `useChapterAudio` ✅
 - [x] Chapter-scoped audio management
 - [x] AbortController for chapter switch interruption
 - [x] Background polling for buffer maintenance
 - [x] Signed URL caching
 - [x] Auto-advance to next paragraph on completion
 
-### 5.4 UI Integration ✅
+### 5.5 UI Integration ✅
 - [x] "Generate Voice" button triggers chapter-scoped generation
 - [x] Loading state during generation
 - [x] Play/pause controls
 - [x] Playback speed control
 
 **Files created/updated:**
-- `supabase/functions/generate-chapter-audio/index.ts` - Chapter-scoped edge function
+- `supabase/functions/generate-chapter-audio/index.ts` - Chapter-scoped edge function with token-safe chunking
 - `src/hooks/useChapterAudio.ts` - Chapter audio management hook
 - Deleted old `useAudioGeneration.ts` and `useAudioPlayback.ts`
 

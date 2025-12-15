@@ -503,6 +503,33 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     }
   }, []);
 
+  // Handle visibility changes - resume audio when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (!document.hidden) {
+        console.log('[useChapterAudio] Tab became visible, checking audio state...');
+        
+        // Resume audio playback if it was playing
+        if (audioRef.current && isPlaying) {
+          try {
+            // Check if audio is paused due to tab backgrounding
+            if (audioRef.current.paused) {
+              console.log('[useChapterAudio] Resuming paused audio...');
+              await audioRef.current.play();
+            }
+          } catch (err) {
+            console.error('[useChapterAudio] Failed to resume audio:', err);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isPlaying]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {

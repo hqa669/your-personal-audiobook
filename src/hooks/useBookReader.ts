@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { parseEpubChapters, ParsedBook, Chapter } from '@/lib/epub-chapter-parser';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,94 +18,168 @@ export function useBookReader(bookId: string | undefined) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<PlaybackProgress>({ chapterIndex: 0, positionSeconds: 0 });
+  
+  // Refs for idempotent loading
+  const isLoadingBookRef = useRef(false);
+  const isLoadingEpubRef = useRef(false);
+  const loadedBookIdRef = useRef<string | null>(null);
 
-  // Fetch book data from database
-  useEffect(() => {
-    async function fetchBook() {
-      if (!bookId || !user) return;
-      
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const { data, error: fetchError } = await supabase
-          .from('books')
-          .select('id, title, author, epub_url, status')
-          .eq('id', bookId)
-          .eq('user_id', user.id)
-          .single();
-        
-        if (fetchError) throw fetchError;
-        if (!data) throw new Error('Book not found');
-        
-        setBook({
-          id: data.id,
-          title: data.title,
-          author: data.author || 'Unknown Author',
-          epubUrl: data.epub_url,
-          status: data.status,
-        });
-        
-        // Fetch existing progress
-        const { data: progressData } = await supabase
-          .from('playback_progress')
-          .select('chapter_index, position_seconds')
-          .eq('book_id', bookId)
-          .eq('user_id', user.id)
-          .single();
-        
-        if (progressData) {
-          setProgress({
-            chapterIndex: progressData.chapter_index || 0,
-            positionSeconds: progressData.position_seconds || 0,
-          });
-          setChapterIndex(progressData.chapter_index || 0);
-        }
-      } catch (err) {
-        console.error('Failed to fetch book:', err);
-        setError('Failed to load book');
-        setIsLoading(false);
-      }
+  // Idempotent book fetch function
+  const fetchBook = useCallback(async () => {
+    if (!bookId || !user) return;
+    if (isLoadingBookRef.current) {
+      console.log('[useBookReader] Book fetch already in progress, skipping');
+      return;
+    }
+    // Skip if already loaded this book
+    if (loadedBookIdRef.current === bookId && book) {
+      console.log('[useBookReader] Book already loaded, skipping fetch');
+      return;
     }
     
+    isLoadingBookRef.current = true;
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[useBookReader] Fetching book:', bookId);
+      const { data, error: fetchError } = await supabase
+        .from('books')
+        .select('id, title, author, epub_url, status')
+        .eq('id', bookId)
+        .eq('user_id', user.id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      if (!data) throw new Error('Book not found');
+      
+      setBook({
+        id: data.id,
+        title: data.title,
+        author: data.author || 'Unknown Author',
+        epubUrl: data.epub_url,
+        status: data.status,
+      });
+      loadedBookIdRef.current = bookId;
+      
+      // Fetch existing progress
+      const { data: progressData } = await supabase
+        .from('playback_progress')
+        .select('chapter_index, position_seconds')
+        .eq('book_id', bookId)
+        .eq('user_id', user.id)
+        .single();
+      
+      if (progressData) {
+        setProgress({
+          chapterIndex: progressData.chapter_index || 0,
+          positionSeconds: progressData.position_seconds || 0,
+        });
+        setChapterIndex(progressData.chapter_index || 0);
+      }
+    } catch (err) {
+      console.error('[useBookReader] Failed to fetch book:', err);
+      setError('Failed to load book');
+      setIsLoading(false);
+    } finally {
+      isLoadingBookRef.current = false;
+    }
+  }, [bookId, user, book]);
+
+  // Idempotent EPUB parsing function
+  const loadEpub = useCallback(async () => {
+    if (!book?.epubUrl) return;
+    if (isLoadingEpubRef.current) {
+      console.log('[useBookReader] EPUB parse already in progress, skipping');
+      return;
+    }
+    // Skip if already parsed for this book
+    if (parsedBook && loadedBookIdRef.current === book.id) {
+      console.log('[useBookReader] EPUB already parsed, skipping');
+      setIsLoading(false);
+      return;
+    }
+    
+    isLoadingEpubRef.current = true;
+    
+    try {
+      console.log('[useBookReader] Parsing EPUB for book:', book.id);
+      // Get signed URL for the EPUB file
+      const epubPath = book.epubUrl.split('/').slice(-2).join('/');
+      const { data: signedData, error: signError } = await supabase.storage
+        .from('epub-files')
+        .createSignedUrl(epubPath, 3600);
+      
+      if (signError || !signedData?.signedUrl) {
+        throw new Error('Failed to get EPUB access');
+      }
+      
+      const parsed = await parseEpubChapters(signedData.signedUrl);
+      setParsedBook(parsed);
+      
+      // Set current chapter based on saved progress
+      if (parsed.chapters[chapterIndex]) {
+        setCurrentChapter(parsed.chapters[chapterIndex]);
+      } else {
+        setCurrentChapter(parsed.chapters[0]);
+      }
+    } catch (err) {
+      console.error('[useBookReader] Failed to parse EPUB:', err);
+      setError('Failed to parse book content');
+    } finally {
+      isLoadingEpubRef.current = false;
+      setIsLoading(false);
+    }
+  }, [book?.epubUrl, book?.id, chapterIndex, parsedBook]);
+
+  // Handle page visibility changes - retry loading if stuck
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('[useBookReader] Tab became visible, checking state...');
+        // If still loading and no active fetch, retry
+        if (isLoading && !isLoadingBookRef.current && !isLoadingEpubRef.current) {
+          console.log('[useBookReader] Detected stuck loading state, retrying...');
+          if (!book) {
+            fetchBook();
+          } else if (!parsedBook) {
+            loadEpub();
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isLoading, book, parsedBook, fetchBook, loadEpub]);
+
+  // Fail-safe timeout to retry stuck loading
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (isLoading && !isLoadingBookRef.current && !isLoadingEpubRef.current) {
+        console.log('[useBookReader] Fail-safe timeout triggered, retrying...');
+        if (!book) {
+          fetchBook();
+        } else if (!parsedBook) {
+          loadEpub();
+        }
+      }
+    }, 8000);
+
+    return () => clearTimeout(timeout);
+  }, [isLoading, book, parsedBook, fetchBook, loadEpub]);
+
+  // Initial book fetch
+  useEffect(() => {
     fetchBook();
-  }, [bookId, user]);
+  }, [fetchBook]);
 
   // Parse EPUB when book is loaded
   useEffect(() => {
-    async function loadEpub() {
-      if (!book?.epubUrl) return;
-      
-      try {
-        // Get signed URL for the EPUB file
-        const epubPath = book.epubUrl.split('/').slice(-2).join('/');
-        const { data: signedData, error: signError } = await supabase.storage
-          .from('epub-files')
-          .createSignedUrl(epubPath, 3600);
-        
-        if (signError || !signedData?.signedUrl) {
-          throw new Error('Failed to get EPUB access');
-        }
-        
-        const parsed = await parseEpubChapters(signedData.signedUrl);
-        setParsedBook(parsed);
-        
-        // Set current chapter based on saved progress
-        if (parsed.chapters[chapterIndex]) {
-          setCurrentChapter(parsed.chapters[chapterIndex]);
-        } else {
-          setCurrentChapter(parsed.chapters[0]);
-        }
-      } catch (err) {
-        console.error('Failed to parse EPUB:', err);
-        setError('Failed to parse book content');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    
     loadEpub();
-  }, [book?.epubUrl, chapterIndex]);
+  }, [loadEpub]);
 
   // Navigate to chapter
   const goToChapter = useCallback((index: number) => {

@@ -409,6 +409,7 @@ create policy "Users can upload covers"
 - [ ] Progress bar with seek
 - [ ] Auto-save playback position
 - [ ] Resume from last position
+- [x] Auto-play on first audio availability (streaming-like experience: playback starts as soon as first paragraph is ready)
 
 ### 6.3 Dual Mode
 - [ ] Text + audio synchronized view

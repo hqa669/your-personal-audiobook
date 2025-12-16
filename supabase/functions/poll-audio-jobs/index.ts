@@ -11,7 +11,8 @@ const RUNPOD_ENDPOINT_ID = Deno.env.get("RUNPOD_ENDPOINT_ID");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-const MAX_JOBS_PER_CALL = 10; // Limit to prevent timeout
+const MAX_JOBS_PER_CALL = 5; // Reduced to prevent timeout
+const FETCH_TIMEOUT_MS = 8000; // 8 second timeout for RunPod API calls
 
 /**
  * Convert base64 to Uint8Array
@@ -26,21 +27,35 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 /**
- * Check RunPod job status
+ * Check RunPod job status with timeout
  */
 async function checkJobStatus(jobId: string): Promise<{ status: string; output?: { audio_base64: string } }> {
   const statusUrl = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/status/${jobId}`;
   
-  const response = await fetch(statusUrl, {
-    headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  
+  try {
+    const response = await fetch(statusUrl, {
+      headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    console.error(`[poll-audio-jobs] Status check failed for ${jobId}: ${response.status}`);
-    throw new Error(`Status check failed: ${response.status}`);
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.error(`[poll-audio-jobs] Status check failed for ${jobId}: ${response.status}`);
+      throw new Error(`Status check failed: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Timeout checking job ${jobId}`);
+    }
+    throw err;
   }
-
-  return await response.json();
 }
 
 serve(async (req) => {

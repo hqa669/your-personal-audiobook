@@ -431,6 +431,7 @@ create policy "Users can upload covers"
 - [ ] Resume from last position
 - [x] Auto-play on first audio availability (streaming-like experience: playback starts as soon as first paragraph is ready)
 - [x] Auto-continue playback when next track becomes available during generation (no pause between paragraphs)
+- [x] Wait for PENDING chunks during playback (player polls and waits for in-progress audio instead of stopping)
 
 ### 6.3 Dual Mode
 - [ ] Text + audio synchronized view

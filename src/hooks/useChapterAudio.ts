@@ -41,6 +41,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
   const [playbackRate, setPlaybackRate] = useState(1);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const preloadedAudioRef = useRef<{ audio: HTMLAudioElement; paragraphIndex: number; chunkIndex: number } | null>(null);
   const signedUrlsRef = useRef<Map<string, string>>(new Map());
   const abortControllerRef = useRef<AbortController | null>(null);
   const bufferCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -49,13 +50,15 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
   const hasAutoPlayedRef = useRef<boolean>(false);
   const audioTracksRef = useRef<AudioTrack[]>([]);
   const currentParagraphIndexRef = useRef<number>(0);
+  const currentChunkIndexRef = useRef<number>(0);
   const isGeneratingRef = useRef<boolean>(false);
   const bufferMaintenanceActiveRef = useRef<boolean>(false);
 
   // Keep refs in sync
   useEffect(() => {
     currentParagraphIndexRef.current = currentParagraphIndex;
-  }, [currentParagraphIndex]);
+    currentChunkIndexRef.current = currentChunkIndex;
+  }, [currentParagraphIndex, currentChunkIndex]);
 
   useEffect(() => {
     audioTracksRef.current = audioTracks;
@@ -87,6 +90,12 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
+    }
+
+    // Clear preloaded audio
+    if (preloadedAudioRef.current) {
+      preloadedAudioRef.current.audio.src = '';
+      preloadedAudioRef.current = null;
     }
 
     setAudioTracks([]);
@@ -408,6 +417,80 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     return null;
   }, []);
 
+  // Preload a chunk without playing it
+  const preloadChunk = useCallback(async (paragraphIndex: number, chunkIndex: number): Promise<HTMLAudioElement | null> => {
+    const currentTracks = audioTracksRef.current;
+    const track = currentTracks.find(t => 
+      t.paragraph_index === paragraphIndex && 
+      t.chunk_index === chunkIndex
+    );
+    
+    if (!track || track.status !== 'GENERATED' || !track.audio_url) {
+      return null;
+    }
+
+    if (chapterIndex !== activeChapterRef.current) return null;
+
+    try {
+      const signedUrl = await getSignedUrl(track.audio_url);
+      if (!signedUrl || chapterIndex !== activeChapterRef.current) {
+        return null;
+      }
+
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = signedUrl;
+      
+      // Wait for audio to be loaded enough to play
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => resolve(), 3000); // Max wait 3s
+        audio.addEventListener('canplaythrough', () => {
+          clearTimeout(timeout);
+          resolve();
+        }, { once: true });
+        audio.addEventListener('error', () => {
+          clearTimeout(timeout);
+          reject(new Error('Audio preload failed'));
+        }, { once: true });
+        audio.load();
+      });
+
+      return audio;
+    } catch (err) {
+      console.error('[useChapterAudio] Error preloading chunk:', err);
+      return null;
+    }
+  }, [chapterIndex, getSignedUrl]);
+
+  // Preload the next chunk in background
+  const preloadNextChunk = useCallback(async (currentParaIdx: number, currentChunkIdx: number) => {
+    const nextChunk = findNextChunk(currentParaIdx, currentChunkIdx, audioTracksRef.current);
+    
+    if (!nextChunk || nextChunk.isPending) {
+      preloadedAudioRef.current = null;
+      return;
+    }
+
+    // Check if already preloaded
+    if (preloadedAudioRef.current && 
+        preloadedAudioRef.current.paragraphIndex === nextChunk.paragraphIndex &&
+        preloadedAudioRef.current.chunkIndex === nextChunk.chunkIndex) {
+      return;
+    }
+
+    console.log('[useChapterAudio] Preloading chunk p', nextChunk.paragraphIndex, 'c', nextChunk.chunkIndex);
+    
+    const audio = await preloadChunk(nextChunk.paragraphIndex, nextChunk.chunkIndex);
+    if (audio && chapterIndex === activeChapterRef.current) {
+      preloadedAudioRef.current = {
+        audio,
+        paragraphIndex: nextChunk.paragraphIndex,
+        chunkIndex: nextChunk.chunkIndex
+      };
+      console.log('[useChapterAudio] Preloaded chunk ready');
+    }
+  }, [chapterIndex, findNextChunk, preloadChunk]);
+
   // Load and play a specific chunk
   const loadChunk = useCallback(async (paragraphIndex: number, chunkIndex: number) => {
     const currentTracks = audioTracksRef.current;
@@ -423,26 +506,45 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
 
     if (chapterIndex !== activeChapterRef.current) return false;
 
-    setIsLoading(true);
+    // Check if we have this chunk preloaded
+    const preloaded = preloadedAudioRef.current;
+    const usePreloaded = preloaded && 
+      preloaded.paragraphIndex === paragraphIndex && 
+      preloaded.chunkIndex === chunkIndex;
+
+    if (usePreloaded) {
+      console.log('[useChapterAudio] Using preloaded audio for p', paragraphIndex, 'c', chunkIndex);
+    } else {
+      setIsLoading(true);
+    }
 
     try {
-      const signedUrl = await getSignedUrl(track.audio_url);
-      if (!signedUrl) {
-        setIsLoading(false);
-        return false;
+      let audio: HTMLAudioElement;
+
+      if (usePreloaded) {
+        audio = preloaded.audio;
+        preloadedAudioRef.current = null;
+      } else {
+        const signedUrl = await getSignedUrl(track.audio_url);
+        if (!signedUrl) {
+          setIsLoading(false);
+          return false;
+        }
+
+        if (chapterIndex !== activeChapterRef.current) {
+          setIsLoading(false);
+          return false;
+        }
+
+        audio = new Audio(signedUrl);
       }
 
-      if (chapterIndex !== activeChapterRef.current) {
-        setIsLoading(false);
-        return false;
-      }
-
+      // Stop current audio
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = '';
       }
 
-      const audio = new Audio(signedUrl);
       audio.playbackRate = playbackRate;
 
       audio.addEventListener('loadedmetadata', () => {
@@ -461,53 +563,122 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       audio.addEventListener('ended', () => {
         if (chapterIndex !== activeChapterRef.current) return;
 
-        const waitForNextChunk = (paraIdx: number, chunkIdx: number) => {
-          console.log('[useChapterAudio] Waiting for next chunk to be ready...');
-          const checkInterval = setInterval(async () => {
-            if (chapterIndex !== activeChapterRef.current) {
-              clearInterval(checkInterval);
-              return;
+        const playNextOrWait = async () => {
+          // Check if we have preloaded audio ready
+          const preloadedNext = preloadedAudioRef.current;
+          const nextChunk = findNextChunk(paragraphIndex, chunkIndex, audioTracksRef.current);
+
+          if (preloadedNext && nextChunk && !nextChunk.isPending &&
+              preloadedNext.paragraphIndex === nextChunk.paragraphIndex &&
+              preloadedNext.chunkIndex === nextChunk.chunkIndex) {
+            // Use preloaded audio immediately - no gap!
+            console.log('[useChapterAudio] Playing preloaded chunk immediately');
+            setCurrentParagraphIndex(preloadedNext.paragraphIndex);
+            setCurrentChunkIndex(preloadedNext.chunkIndex);
+            
+            const nextAudio = preloadedNext.audio;
+            preloadedAudioRef.current = null;
+            
+            if (audioRef.current) {
+              audioRef.current.pause();
+              audioRef.current.src = '';
             }
             
-            // Poll for job completion
-            await pollAudioJobs();
-            // Refresh tracks
-            const refreshedTracks = await fetchAudioTracks();
+            nextAudio.playbackRate = playbackRate;
             
-            const latestNext = findNextChunk(paraIdx, chunkIdx, refreshedTracks);
-            if (latestNext && !latestNext.isPending) {
-              clearInterval(checkInterval);
-              setCurrentParagraphIndex(latestNext.paragraphIndex);
-              setCurrentChunkIndex(latestNext.chunkIndex);
-              loadChunk(latestNext.paragraphIndex, latestNext.chunkIndex);
-            } else if (!hasPendingJobs(refreshedTracks) && !isGeneratingRef.current) {
-              // No pending jobs and not generating - stop playback
-              clearInterval(checkInterval);
+            nextAudio.addEventListener('loadedmetadata', () => {
+              if (chapterIndex === activeChapterRef.current) {
+                setDuration(nextAudio.duration);
+              }
+            });
+
+            nextAudio.addEventListener('timeupdate', () => {
+              if (chapterIndex === activeChapterRef.current) {
+                setCurrentTime(nextAudio.currentTime);
+              }
+            });
+
+            nextAudio.addEventListener('ended', () => {
+              if (chapterIndex !== activeChapterRef.current) return;
+              playNextOrWait();
+            });
+
+            nextAudio.addEventListener('error', (e) => {
+              console.error('[useChapterAudio] Audio playback error:', e);
+            });
+
+            audioRef.current = nextAudio;
+            
+            try {
+              await nextAudio.play();
+              // Start preloading the next chunk
+              preloadNextChunk(preloadedNext.paragraphIndex, preloadedNext.chunkIndex);
+            } catch (err) {
+              console.error('[useChapterAudio] Failed to play preloaded audio:', err);
               setIsPlaying(false);
             }
-          }, 1000);
+            return;
+          }
+
+          // No preloaded audio - fall back to loading
+          if (nextChunk) {
+            if (!nextChunk.isPending) {
+              setCurrentParagraphIndex(nextChunk.paragraphIndex);
+              setCurrentChunkIndex(nextChunk.chunkIndex);
+              loadChunk(nextChunk.paragraphIndex, nextChunk.chunkIndex);
+            } else {
+              // Wait for pending chunk
+              console.log('[useChapterAudio] Waiting for next chunk to be ready...');
+              const checkInterval = setInterval(async () => {
+                if (chapterIndex !== activeChapterRef.current) {
+                  clearInterval(checkInterval);
+                  return;
+                }
+                
+                await pollAudioJobs();
+                const refreshedTracks = await fetchAudioTracks();
+                
+                const latestNext = findNextChunk(paragraphIndex, chunkIndex, refreshedTracks);
+                if (latestNext && !latestNext.isPending) {
+                  clearInterval(checkInterval);
+                  setCurrentParagraphIndex(latestNext.paragraphIndex);
+                  setCurrentChunkIndex(latestNext.chunkIndex);
+                  loadChunk(latestNext.paragraphIndex, latestNext.chunkIndex);
+                } else if (!hasPendingJobs(refreshedTracks) && !isGeneratingRef.current) {
+                  clearInterval(checkInterval);
+                  setIsPlaying(false);
+                }
+              }, 1000);
+            }
+          } else if (hasPendingJobs(audioTracksRef.current) || isGeneratingRef.current) {
+            // Wait for jobs
+            console.log('[useChapterAudio] Waiting for next chunk to be ready...');
+            const checkInterval = setInterval(async () => {
+              if (chapterIndex !== activeChapterRef.current) {
+                clearInterval(checkInterval);
+                return;
+              }
+              
+              await pollAudioJobs();
+              const refreshedTracks = await fetchAudioTracks();
+              
+              const latestNext = findNextChunk(paragraphIndex, chunkIndex, refreshedTracks);
+              if (latestNext && !latestNext.isPending) {
+                clearInterval(checkInterval);
+                setCurrentParagraphIndex(latestNext.paragraphIndex);
+                setCurrentChunkIndex(latestNext.chunkIndex);
+                loadChunk(latestNext.paragraphIndex, latestNext.chunkIndex);
+              } else if (!hasPendingJobs(refreshedTracks) && !isGeneratingRef.current) {
+                clearInterval(checkInterval);
+                setIsPlaying(false);
+              }
+            }, 1000);
+          } else {
+            setIsPlaying(false);
+          }
         };
 
-        // Find next chunk to play
-        const latestTracks = audioTracksRef.current;
-        const nextChunk = findNextChunk(paragraphIndex, chunkIndex, latestTracks);
-        
-        if (nextChunk) {
-          if (!nextChunk.isPending) {
-            // Chunk is ready, play it
-            setCurrentParagraphIndex(nextChunk.paragraphIndex);
-            setCurrentChunkIndex(nextChunk.chunkIndex);
-            loadChunk(nextChunk.paragraphIndex, nextChunk.chunkIndex);
-          } else {
-            // Chunk is pending - wait for it
-            waitForNextChunk(paragraphIndex, chunkIndex);
-          }
-        } else if (hasPendingJobs(latestTracks) || isGeneratingRef.current) {
-          // No next chunk found but jobs are pending - wait
-          waitForNextChunk(paragraphIndex, chunkIndex);
-        } else {
-          setIsPlaying(false);
-        }
+        playNextOrWait();
       });
 
       audio.addEventListener('error', (e) => {
@@ -524,6 +695,8 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       await audio.play();
       if (chapterIndex === activeChapterRef.current) {
         setIsPlaying(true);
+        // Start preloading next chunk
+        preloadNextChunk(paragraphIndex, chunkIndex);
       }
 
       return true;
@@ -534,7 +707,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       }
       return false;
     }
-  }, [chapterIndex, getSignedUrl, playbackRate, findNextChunk]);
+  }, [chapterIndex, getSignedUrl, playbackRate, findNextChunk, preloadNextChunk, pollAudioJobs, fetchAudioTracks, hasPendingJobs]);
 
   // Auto-play when first chunk's audio becomes available
   useEffect(() => {

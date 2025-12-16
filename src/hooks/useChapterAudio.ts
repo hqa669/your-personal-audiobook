@@ -208,14 +208,15 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
   /**
    * Request generation for target duration - fire and forget
    * This does NOT block; it returns immediately after submitting jobs
+   * startFromParagraph: generate buffer starting from this paragraph (current playback position)
    */
-  const requestGeneration = useCallback(async (targetMinutes: number): Promise<{ submitted: number } | null> => {
+  const requestGeneration = useCallback(async (targetMinutes: number, startFromParagraph: number = 0): Promise<{ submitted: number } | null> => {
     if (!bookId || !user) return null;
     if (chapterIndex !== activeChapterRef.current) return null;
 
     try {
       const { data, error } = await supabase.functions.invoke('generate-chapter-audio', {
-        body: { bookId, chapterIndex, targetDurationMinutes: targetMinutes },
+        body: { bookId, chapterIndex, targetDurationMinutes: targetMinutes, startFromParagraph },
       });
 
       if (error) {
@@ -253,15 +254,19 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     
     console.log(`[useChapterAudio] Buffer check: ${bufferMinutes.toFixed(1)} min (need ${ROLLING_BUFFER_MINUTES} min, from p${currentIdx})`);
 
-    // Check if we have pending jobs
-    const hasPending = tracks.some(t => t.status === 'PENDING');
+    // Check if we have pending jobs FROM THE CURRENT PARAGRAPH FORWARD (not all tracks)
+    const hasPendingFromCurrent = tracks.some(t => 
+      t.paragraph_index >= currentIdx && 
+      (t.status === 'PENDING' || t.status === 'GENERATING')
+    );
     
-    // If buffer is insufficient and no pending jobs, request more generation
-    if (bufferMinutes < ROLLING_BUFFER_MINUTES && !hasPending) {
-      console.log('[useChapterAudio] Buffer low and no pending jobs, requesting generation');
+    // If buffer is insufficient and no pending jobs from current position, request more generation
+    if (bufferMinutes < ROLLING_BUFFER_MINUTES && !hasPendingFromCurrent) {
+      console.log('[useChapterAudio] Buffer low and no pending jobs from current position, requesting generation');
       setIsGenerating(true);
       
-      const result = await requestGeneration(ROLLING_BUFFER_MINUTES);
+      // Pass current paragraph so edge function generates from current position forward
+      const result = await requestGeneration(ROLLING_BUFFER_MINUTES, currentIdx);
       
       if (result && result.submitted > 0) {
         toast.info(`Generating ${result.submitted} audio chunks...`);
@@ -269,7 +274,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
         // No more paragraphs to generate
         setIsGenerating(false);
       }
-    } else if (hasPending) {
+    } else if (hasPendingFromCurrent) {
       setIsGenerating(true);
     } else if (bufferMinutes >= ROLLING_BUFFER_MINUTES) {
       // Buffer is sufficient

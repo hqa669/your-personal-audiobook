@@ -315,10 +315,12 @@ serve(async (req) => {
       throw new Error("RunPod credentials not configured");
     }
 
-    const { bookId, chapterIndex, targetDurationMinutes = 5 } = await req.json();
+    const { bookId, chapterIndex, targetDurationMinutes = 5, startFromParagraph = 0 } = await req.json();
     if (!bookId || chapterIndex === undefined) {
       throw new Error("bookId and chapterIndex are required");
     }
+    
+    console.log(`[generate-chapter-audio] Request: chapter ${chapterIndex}, target ${targetDurationMinutes} min, starting from p${startFromParagraph}`);
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -410,6 +412,11 @@ serve(async (req) => {
     const chunksToGenerate: ChunkToGenerate[] = [];
 
     for (const para of paragraphs) {
+      // Skip paragraphs before the starting position
+      if (para.paragraphIndex < startFromParagraph) {
+        continue;
+      }
+      
       const existing = paragraphStatus.get(para.paragraphIndex);
       
       const textChunks = splitParagraphIntoStreamingChunks(para.text);

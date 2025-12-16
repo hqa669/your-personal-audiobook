@@ -362,18 +362,26 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
     }
   }, []);
 
+  // Check if there are any PENDING jobs that might complete
+  const hasPendingJobs = useCallback((tracks: AudioTrack[]): boolean => {
+    return tracks.some(t => t.status === 'PENDING' || t.status === 'GENERATING');
+  }, []);
+
   // Find next chunk to play (within same paragraph or next paragraph)
-  const findNextChunk = useCallback((currentParaIdx: number, currentChunkIdx: number, tracks: AudioTrack[]): { paragraphIndex: number; chunkIndex: number } | null => {
+  const findNextChunk = useCallback((currentParaIdx: number, currentChunkIdx: number, tracks: AudioTrack[]): { paragraphIndex: number; chunkIndex: number; isPending: boolean } | null => {
     // First try next chunk in same paragraph
     const nextChunkInPara = tracks.find(t => 
       t.paragraph_index === currentParaIdx && 
-      t.chunk_index === currentChunkIdx + 1 &&
-      t.status === 'GENERATED' && 
-      t.audio_url
+      t.chunk_index === currentChunkIdx + 1
     );
     
     if (nextChunkInPara) {
-      return { paragraphIndex: currentParaIdx, chunkIndex: currentChunkIdx + 1 };
+      if (nextChunkInPara.status === 'GENERATED' && nextChunkInPara.audio_url) {
+        return { paragraphIndex: currentParaIdx, chunkIndex: currentChunkIdx + 1, isPending: false };
+      } else if (nextChunkInPara.status === 'PENDING' || nextChunkInPara.status === 'GENERATING') {
+        // Chunk exists but is pending - return it so caller knows to wait
+        return { paragraphIndex: currentParaIdx, chunkIndex: currentChunkIdx + 1, isPending: true };
+      }
     }
 
     // Check if current paragraph is complete (all chunks generated)
@@ -385,13 +393,15 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       // Move to first chunk of next paragraph
       const nextParaFirstChunk = tracks.find(t => 
         t.paragraph_index === currentParaIdx + 1 && 
-        t.chunk_index === 0 &&
-        t.status === 'GENERATED' && 
-        t.audio_url
+        t.chunk_index === 0
       );
       
       if (nextParaFirstChunk) {
-        return { paragraphIndex: currentParaIdx + 1, chunkIndex: 0 };
+        if (nextParaFirstChunk.status === 'GENERATED' && nextParaFirstChunk.audio_url) {
+          return { paragraphIndex: currentParaIdx + 1, chunkIndex: 0, isPending: false };
+        } else if (nextParaFirstChunk.status === 'PENDING' || nextParaFirstChunk.status === 'GENERATING') {
+          return { paragraphIndex: currentParaIdx + 1, chunkIndex: 0, isPending: true };
+        }
       }
     }
 
@@ -451,38 +461,52 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
       audio.addEventListener('ended', () => {
         if (chapterIndex !== activeChapterRef.current) return;
 
+        const waitForNextChunk = (paraIdx: number, chunkIdx: number) => {
+          console.log('[useChapterAudio] Waiting for next chunk to be ready...');
+          const checkInterval = setInterval(async () => {
+            if (chapterIndex !== activeChapterRef.current) {
+              clearInterval(checkInterval);
+              return;
+            }
+            
+            // Poll for job completion
+            await pollAudioJobs();
+            // Refresh tracks
+            const refreshedTracks = await fetchAudioTracks();
+            
+            const latestNext = findNextChunk(paraIdx, chunkIdx, refreshedTracks);
+            if (latestNext && !latestNext.isPending) {
+              clearInterval(checkInterval);
+              setCurrentParagraphIndex(latestNext.paragraphIndex);
+              setCurrentChunkIndex(latestNext.chunkIndex);
+              loadChunk(latestNext.paragraphIndex, latestNext.chunkIndex);
+            } else if (!hasPendingJobs(refreshedTracks) && !isGeneratingRef.current) {
+              // No pending jobs and not generating - stop playback
+              clearInterval(checkInterval);
+              setIsPlaying(false);
+            }
+          }, 1000);
+        };
+
         // Find next chunk to play
         const latestTracks = audioTracksRef.current;
         const nextChunk = findNextChunk(paragraphIndex, chunkIndex, latestTracks);
         
         if (nextChunk) {
-          setCurrentParagraphIndex(nextChunk.paragraphIndex);
-          setCurrentChunkIndex(nextChunk.chunkIndex);
-          loadChunk(nextChunk.paragraphIndex, nextChunk.chunkIndex);
-        } else {
-          // No next chunk ready - wait if still generating
-          if (isGeneratingRef.current) {
-            console.log('[useChapterAudio] Next chunk not ready yet, waiting...');
-            const checkInterval = setInterval(() => {
-              if (chapterIndex !== activeChapterRef.current) {
-                clearInterval(checkInterval);
-                return;
-              }
-              const latestTracks = audioTracksRef.current;
-              const latestNext = findNextChunk(paragraphIndex, chunkIndex, latestTracks);
-              if (latestNext) {
-                clearInterval(checkInterval);
-                setCurrentParagraphIndex(latestNext.paragraphIndex);
-                setCurrentChunkIndex(latestNext.chunkIndex);
-                loadChunk(latestNext.paragraphIndex, latestNext.chunkIndex);
-              } else if (!isGeneratingRef.current) {
-                clearInterval(checkInterval);
-                setIsPlaying(false);
-              }
-            }, 1000);
+          if (!nextChunk.isPending) {
+            // Chunk is ready, play it
+            setCurrentParagraphIndex(nextChunk.paragraphIndex);
+            setCurrentChunkIndex(nextChunk.chunkIndex);
+            loadChunk(nextChunk.paragraphIndex, nextChunk.chunkIndex);
           } else {
-            setIsPlaying(false);
+            // Chunk is pending - wait for it
+            waitForNextChunk(paragraphIndex, chunkIndex);
           }
+        } else if (hasPendingJobs(latestTracks) || isGeneratingRef.current) {
+          // No next chunk found but jobs are pending - wait
+          waitForNextChunk(paragraphIndex, chunkIndex);
+        } else {
+          setIsPlaying(false);
         }
       });
 

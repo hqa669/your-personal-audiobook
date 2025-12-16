@@ -65,7 +65,7 @@ function splitByPunctuation(text: string): string[] {
   
   const result: string[] = [];
   for (const part of semiParts) {
-    if (estimateTokens(part) > MAX_TTS_TOKENS) {
+    if (estimateTokens(part) > TARGET_CHUNK_TOKENS) {
       // If still too large, split by commas
       const commaParts = splitByComma(part);
       result.push(...commaParts);
@@ -95,7 +95,8 @@ function splitParagraphIntoStreamingChunks(text: string): string[] {
     const sentenceTokens = estimateTokens(sentence);
     const currentTokens = estimateTokens(currentChunk);
 
-    if (sentenceTokens > MAX_TTS_TOKENS) {
+    // If sentence exceeds TARGET tokens, split by punctuation (semicolons, then commas)
+    if (sentenceTokens > TARGET_CHUNK_TOKENS) {
       if (currentChunk.trim()) {
         chunks.push(currentChunk.trim());
         currentChunk = "";
@@ -108,12 +109,14 @@ function splitParagraphIntoStreamingChunks(text: string): string[] {
         const partTokens = estimateTokens(part);
         const subChunkTokens = estimateTokens(subChunk);
 
-        if (partTokens > MAX_TTS_TOKENS) {
+        if (partTokens > TARGET_CHUNK_TOKENS) {
+          // Still too large - try to fit what we can, then hard split
           if (subChunk.trim()) {
             chunks.push(subChunk.trim());
             subChunk = "";
           }
-          const maxChars = (MAX_TTS_TOKENS - 50) * CHARS_PER_TOKEN;
+          // Hard split by character count if still over limit
+          const maxChars = TARGET_CHUNK_TOKENS * CHARS_PER_TOKEN;
           for (let i = 0; i < part.length; i += maxChars) {
             const hardChunk = part.substring(i, i + maxChars).trim();
             if (hardChunk) chunks.push(hardChunk);

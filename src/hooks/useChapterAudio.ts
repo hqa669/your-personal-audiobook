@@ -564,15 +564,19 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
         if (chapterIndex !== activeChapterRef.current) return;
 
         const playNextOrWait = async () => {
+          // Use refs to get CURRENT position, not closure values
+          const currentParaIdx = currentParagraphIndexRef.current;
+          const currentChunkIdx = currentChunkIndexRef.current;
+          
           // Check if we have preloaded audio ready
           const preloadedNext = preloadedAudioRef.current;
-          const nextChunk = findNextChunk(paragraphIndex, chunkIndex, audioTracksRef.current);
+          const nextChunk = findNextChunk(currentParaIdx, currentChunkIdx, audioTracksRef.current);
 
           if (preloadedNext && nextChunk && !nextChunk.isPending &&
               preloadedNext.paragraphIndex === nextChunk.paragraphIndex &&
               preloadedNext.chunkIndex === nextChunk.chunkIndex) {
             // Use preloaded audio immediately - no gap!
-            console.log('[useChapterAudio] Playing preloaded chunk immediately');
+            console.log('[useChapterAudio] Playing preloaded chunk p', preloadedNext.paragraphIndex, 'c', preloadedNext.chunkIndex);
             setCurrentParagraphIndex(preloadedNext.paragraphIndex);
             setCurrentChunkIndex(preloadedNext.chunkIndex);
             
@@ -638,7 +642,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
                 await pollAudioJobs();
                 const refreshedTracks = await fetchAudioTracks();
                 
-                const latestNext = findNextChunk(paragraphIndex, chunkIndex, refreshedTracks);
+                const latestNext = findNextChunk(currentParaIdx, currentChunkIdx, refreshedTracks);
                 if (latestNext && !latestNext.isPending) {
                   clearInterval(checkInterval);
                   setCurrentParagraphIndex(latestNext.paragraphIndex);
@@ -662,7 +666,7 @@ export function useChapterAudio(bookId: string | undefined, chapterIndex: number
               await pollAudioJobs();
               const refreshedTracks = await fetchAudioTracks();
               
-              const latestNext = findNextChunk(paragraphIndex, chunkIndex, refreshedTracks);
+              const latestNext = findNextChunk(currentParaIdx, currentChunkIdx, refreshedTracks);
               if (latestNext && !latestNext.isPending) {
                 clearInterval(checkInterval);
                 setCurrentParagraphIndex(latestNext.paragraphIndex);

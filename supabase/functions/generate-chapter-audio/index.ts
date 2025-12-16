@@ -41,11 +41,40 @@ function splitIntoSentences(text: string): string[] {
 }
 
 /**
- * Split sentence by secondary punctuation (comma, semicolon)
+ * Split text by semicolons first
+ */
+function splitBySemicolon(text: string): string[] {
+  const parts = text.split(/;+/).map(p => p.trim()).filter(p => p.length > 0);
+  return parts.length > 1 ? parts : [text];
+}
+
+/**
+ * Split text by commas
+ */
+function splitByComma(text: string): string[] {
+  const parts = text.split(/,+/).map(p => p.trim()).filter(p => p.length > 0);
+  return parts.length > 1 ? parts : [text];
+}
+
+/**
+ * Hierarchical split: first semicolons, then commas if still too large
  */
 function splitByPunctuation(text: string): string[] {
-  const parts = text.split(/[,;]+/).map(p => p.trim()).filter(p => p.length > 0);
-  return parts.length > 0 ? parts : [text];
+  // First try splitting by semicolons
+  const semiParts = splitBySemicolon(text);
+  
+  const result: string[] = [];
+  for (const part of semiParts) {
+    if (estimateTokens(part) > MAX_TTS_TOKENS) {
+      // If still too large, split by commas
+      const commaParts = splitByComma(part);
+      result.push(...commaParts);
+    } else {
+      result.push(part);
+    }
+  }
+  
+  return result.length > 0 ? result : [text];
 }
 
 /**

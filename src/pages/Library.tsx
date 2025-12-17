@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Plus, Loader2, BookOpen } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BookCard, AddBookCard } from '@/components/BookCard';
+import { BookCardSkeleton } from '@/components/BookCardSkeleton';
 import { UploadBookModal } from '@/components/UploadBookModal';
 import { DeleteBookDialog } from '@/components/DeleteBookDialog';
+import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useBooks, UserBook } from '@/hooks/useBooks';
@@ -162,6 +164,12 @@ export default function Library() {
     (book.author?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
+  // Randomly select up to 5 public books (stable per allPublicBooks change)
+  const randomPublicBooks = useMemo(() => {
+    const shuffled = [...allPublicBooks].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 5);
+  }, [allPublicBooks]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -203,36 +211,17 @@ export default function Library() {
           </div>
           
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            <div className="scroll-smooth-x">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <BookCardSkeleton key={i} />
+              ))}
             </div>
           ) : filteredBooks.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-12 bg-secondary/30 rounded-2xl"
-            >
-              <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-serif text-lg text-foreground mb-2">
-                {searchQuery ? 'No books found' : 'Your library is empty'}
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                {searchQuery 
-                  ? 'Try a different search term' 
-                  : 'Upload your own EPUB or browse free audiobooks'}
-              </p>
-              {!searchQuery && (
-                <div className="flex justify-center gap-3">
-                  <Button variant="warm" onClick={() => setIsUploadModalOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Upload Book
-                  </Button>
-                  <Button variant="outline" asChild>
-                    <Link to="/discover">Browse Free Books</Link>
-                  </Button>
-                </div>
-              )}
-            </motion.div>
+            <EmptyState
+              variant={searchQuery ? 'search' : 'library'}
+              actionLabel={searchQuery ? undefined : 'Upload Book'}
+              onAction={searchQuery ? undefined : () => setIsUploadModalOpen(true)}
+            />
           ) : (
             <>
               <div className="scroll-smooth-x">
@@ -295,10 +284,7 @@ export default function Library() {
             </div>
             
             <div className="scroll-smooth-x">
-              {(() => {
-                const shuffled = [...allPublicBooks].sort(() => Math.random() - 0.5);
-                return shuffled.slice(0, 5);
-              })().map((book, index) => (
+              {randomPublicBooks.map((book, index) => (
                   <motion.div
                     key={book.id}
                     initial={{ opacity: 0, y: 20 }}

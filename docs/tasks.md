@@ -514,9 +514,9 @@ create policy "Users can upload covers"
 ### 8.1 UX Polish
 - [x] Fix BookCard menu click/pointer propagation (prevent accidental navigation)
 - [x] Fix tab-switching loading bug (visibility-aware idempotent loading with auto-retry and fail-safe timeout)
-- [ ] Loading skeletons for book cards
-- [ ] Empty state illustrations
-- [ ] Error boundary components
+- [x] Loading skeletons for book cards (`BookCardSkeleton.tsx`)
+- [x] Empty state illustrations (`EmptyState.tsx` with variants: library, search, discover, audio)
+- [x] Error boundary components (`ErrorBoundary.tsx`)
 - [ ] Toast notifications for all actions
 - [ ] Smooth modal transitions (spring animation)
 - [ ] Microcopy updates per design guidelines

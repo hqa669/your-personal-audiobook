@@ -327,32 +327,26 @@ create policy "Users can upload covers"
 
 ---
 
-## Phase 5: AI Voice Generation ✅ COMPLETE (v4 - Fire-and-Forget)
+## Phase 5: AI Voice Generation ✅ COMPLETE (v5 - Sentence Chunking + Realtime)
 
 ### 5.1 Edge Function: `generate-chapter-audio` ✅
 - [x] Chapter-scoped generation (not whole book)
 - [x] Duration estimation at 160 WPM
 - [x] Initial 5-minute buffer generation
-- [x] 15-minute rolling buffer with 10-second polling
+- [x] **Sentence-based chunking** (v5):
+  - [x] Split paragraphs into sentences
+  - [x] If sentence > 400 tokens, split to max 240 tokens or 600 chars
+  - [x] Hierarchical splitting: semicolons → commas → hard split
+- [x] **5 concurrent workers** - submit up to 5 RunPod jobs in parallel
 - [x] Paragraph state machine (NOT_GENERATED, PENDING, GENERATING, GENERATED)
-- [x] Idempotent - never generates same paragraph twice
+- [x] Idempotent - never generates same chunk twice
 - [x] Instant abort on chapter switch
 
-### 5.2 Sub-Chunk Streaming Audio ✅ (v3)
-- [x] ~100 token target per sub-chunk for fast first-audio
-- [x] Sentence-aware splitting (preserves complete sentences)
-- [x] Secondary punctuation fallback (comma, semicolon)
-- [x] Hard split as last resort for extremely long sentences
-- [x] Each sub-chunk generates independently (no WAV concatenation)
-- [x] Playback starts when first sub-chunk is ready
-- [x] Multiple audio files per paragraph played in sequence
-- [x] Abort-safe during chunk generation
-
-### 5.3 Database Schema Updates ✅
+### 5.2 Database Schema Updates ✅
 - [x] Updated `audio_tracks` table with:
   - `chapter_index` - chapter scoping
   - `paragraph_index` - paragraph ordering
-  - `chunk_index` - sub-chunk ordering within paragraph
+  - `chunk_index` - sentence chunk ordering within paragraph
   - `total_chunks` - number of chunks for this paragraph
   - `text` - chunk text
   - `estimated_duration_seconds` - pre-generation estimate
@@ -360,28 +354,26 @@ create policy "Users can upload covers"
   - `status` - state machine (NOT_GENERATED, PENDING, GENERATING, GENERATED)
   - `runpod_job_id` - tracks RunPod job for async completion
   - Unique constraint on (book_id, chapter_index, paragraph_index, chunk_index)
+- [x] **Realtime enabled** on `audio_tracks` for instant updates
 
-### 5.4 Hook: `useChapterAudio` ✅
+### 5.3 Hook: `useChapterAudio` ✅ (v5 Rework)
+- [x] **Supabase Realtime subscription** for instant audio detection
 - [x] Chapter-scoped audio management
-- [x] AbortController for chapter switch interruption
-- [x] Background polling for buffer maintenance
+- [x] **Auto-play on first chunk ready** - plays as soon as first sentence audio completes
+- [x] **Pause when next audio not ready** - waits for generation
+- [x] **Resume when audio becomes available** - continues playback automatically
 - [x] Signed URL caching
-- [x] Auto-advance to next paragraph on completion
-- [x] **Continuous 15-minute buffer loop** (v5):
-  - [x] `ensureBuffer()` runs continuously every 5 seconds
-  - [x] Calculates future buffer from current playback position
-  - [x] Includes GENERATED + PENDING + GENERATING in buffer calculation
-  - [x] Uses refs to avoid stale closures (`currentParagraphIndexRef`, `audioTracksRef`)
-  - [x] Triggers generation only when buffer < 15 min AND no pending jobs
-  - [x] Re-runs on tab visibility change
+- [x] Auto-advance to next chunk/paragraph on completion
+- [x] Backup polling via `poll-audio-jobs` edge function
 
-### 5.5 UI Integration ✅
+### 5.4 UI Integration ✅
 - [x] "Generate Voice" button triggers chapter-scoped generation
 - [x] Loading state during generation
+- [x] "Waiting for audio..." state when paused for next chunk
 - [x] Play/pause controls
 - [x] Playback speed control
 
-### 5.6 Book Deletion (Atomic Cleanup) ✅
+### 5.5 Book Deletion (Atomic Cleanup) ✅
 - [x] Delete confirmation dialog with explicit warning
 - [x] Abort active TTS generation on delete
 - [x] Delete all audio files from storage
@@ -392,19 +384,17 @@ create policy "Users can upload covers"
 - [x] Delete book record
 - [x] Context menu on BookCard with delete option
 
-### 5.7 Fire-and-Forget Architecture ✅ (v4)
+### 5.6 Fire-and-Forget Architecture ✅
 - [x] Edge Function submits RunPod jobs and returns immediately (no polling)
 - [x] Stores `runpod_job_id` in audio_tracks with `PENDING` status
-- [x] New `poll-audio-jobs` Edge Function checks RunPod for job completion
-- [x] Client polls `poll-audio-jobs` to track progress and download completed audio
+- [x] `poll-audio-jobs` Edge Function checks RunPod for job completion
 - [x] Completed audio uploaded to storage and status updated to `GENERATED`
 - [x] Failed jobs reset to `NOT_GENERATED` for retry
-- [x] Eliminates Edge Function timeout/network failures during long TTS generation
 
 **Files created/updated:**
-- `supabase/functions/generate-chapter-audio/index.ts` - Fire-and-forget job submission
-- `supabase/functions/poll-audio-jobs/index.ts` - NEW: Polls RunPod and downloads completed audio
-- `src/hooks/useChapterAudio.ts` - Chapter audio management with job polling
+- `supabase/functions/generate-chapter-audio/index.ts` - Sentence chunking + 5 parallel workers
+- `supabase/functions/poll-audio-jobs/index.ts` - Polls RunPod and downloads completed audio
+- `src/hooks/useChapterAudio.ts` - Realtime-based auto-play with pause/resume
 
 **Files created:**
 - `src/components/DeleteBookDialog.tsx` - Delete confirmation dialog

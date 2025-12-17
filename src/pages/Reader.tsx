@@ -49,6 +49,7 @@ export default function Reader() {
     isPlaying,
     isLoading: isAudioLoading,
     isGenerating,
+    isPaused,
     playbackRate,
     togglePlay,
     nextParagraph,
@@ -321,14 +322,15 @@ export default function Reader() {
                         </>
                       )}
                     </Button>
-                  ) : isProcessing ? (
+                  ) : isProcessing || isPaused ? (
                     <Button
                       variant="warm"
                       className="h-12 px-4 rounded-full gap-2 opacity-80"
-                      disabled
+                      disabled={!isPaused}
+                      onClick={isPaused ? (e) => { e.stopPropagation(); togglePlay(); } : undefined}
                     >
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating...
+                      {isPaused ? 'Waiting for audio...' : 'Generating...'}
                     </Button>
                   ) : (
                     <Button

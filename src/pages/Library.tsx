@@ -295,10 +295,11 @@ export default function Library() {
             </div>
             
             <div className="scroll-smooth-x">
-              {allPublicBooks
-                .filter(book => !isInLibrary(book.id))
-                .slice(0, 6)
-                .map((book, index) => (
+              {(() => {
+                const availableBooks = allPublicBooks.filter(book => !isInLibrary(book.id));
+                const shuffled = [...availableBooks].sort(() => Math.random() - 0.5);
+                return shuffled.slice(0, 5);
+              })().map((book, index) => (
                   <motion.div
                     key={book.id}
                     initial={{ opacity: 0, y: 20 }}

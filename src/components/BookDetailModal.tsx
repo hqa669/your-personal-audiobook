@@ -1,18 +1,56 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
-import { Book } from '@/data/books';
+import { X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-interface BookDetailModalProps {
-  book: Book | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onAddToLibrary: (book: Book) => void;
+// Generic book interface that works with both user books and public books
+export interface BookModalData {
+  id: string;
+  title: string;
+  author?: string | null;
+  genre?: string | null;
+  description?: string | null;
+  cover_url?: string | null;
+  coverColor?: string;
+  is_featured?: boolean | null;
 }
 
-export function BookDetailModal({ book, isOpen, onClose, onAddToLibrary }: BookDetailModalProps) {
+interface BookDetailModalProps {
+  book: BookModalData | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onAddToLibrary?: (book: BookModalData) => void;
+  isInLibrary?: boolean;
+  showAddButton?: boolean;
+}
+
+// Generate a gradient color based on book title for books without covers
+const getBookGradient = (title: string) => {
+  const colors = [
+    'bg-gradient-to-br from-rose-100 to-rose-200',
+    'bg-gradient-to-br from-amber-100 to-yellow-200',
+    'bg-gradient-to-br from-slate-200 to-slate-300',
+    'bg-gradient-to-br from-purple-100 to-purple-200',
+    'bg-gradient-to-br from-blue-100 to-cyan-200',
+    'bg-gradient-to-br from-green-100 to-emerald-200',
+    'bg-gradient-to-br from-red-100 to-red-200',
+    'bg-gradient-to-br from-violet-100 to-violet-200',
+  ];
+  const hash = title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[hash % colors.length];
+};
+
+export function BookDetailModal({ 
+  book, 
+  isOpen, 
+  onClose, 
+  onAddToLibrary, 
+  isInLibrary = false,
+  showAddButton = true 
+}: BookDetailModalProps) {
   if (!book) return null;
+
+  const coverClass = book.coverColor || getBookGradient(book.title);
 
   return (
     <AnimatePresence>
@@ -46,51 +84,97 @@ export function BookDetailModal({ book, isOpen, onClose, onAddToLibrary }: BookD
 
               {/* Book cover */}
               <div className="flex justify-center mb-6">
-                <div className={cn(
-                  "w-32 aspect-[2/3] rounded-xl flex items-center justify-center shadow-card",
-                  book.coverColor
-                )}>
-                  <div className="text-center p-3">
-                    <h3 className="font-serif text-sm font-medium text-foreground/90 leading-tight">
-                      {book.title}
-                    </h3>
+                {book.cover_url ? (
+                  <div className="w-32 aspect-[2/3] rounded-xl overflow-hidden shadow-card">
+                    <img
+                      src={book.cover_url}
+                      alt={book.title}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                </div>
+                ) : (
+                  <div className={cn(
+                    "w-32 aspect-[2/3] rounded-xl flex items-center justify-center shadow-card",
+                    coverClass
+                  )}>
+                    <div className="text-center p-3">
+                      <h3 className="font-serif text-sm font-medium text-foreground/90 leading-tight">
+                        {book.title}
+                      </h3>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Book details */}
               <div className="text-center space-y-2 mb-6">
                 <h2 className="font-serif text-2xl text-foreground">{book.title}</h2>
-                <p className="text-muted-foreground">by {book.author}</p>
-                <span className="inline-block px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-sm">
-                  {book.genre}
-                </span>
+                <p className="text-muted-foreground">by {book.author || 'Unknown Author'}</p>
+                <div className="flex justify-center gap-2 flex-wrap">
+                  {book.genre && (
+                    <span className="inline-block px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-sm">
+                      {book.genre}
+                    </span>
+                  )}
+                  {book.is_featured && (
+                    <span className="inline-block px-3 py-1 bg-primary text-primary-foreground rounded-full text-sm">
+                      Featured
+                    </span>
+                  )}
+                </div>
               </div>
 
-              <p className="text-muted-foreground text-center leading-relaxed mb-8">
-                {book.description}
-              </p>
+              {book.description && (
+                <p className="text-muted-foreground text-center leading-relaxed mb-8">
+                  {book.description}
+                </p>
+              )}
 
               {/* Actions */}
               <div className="flex gap-3">
-                <Button
-                  variant="warm"
-                  size="lg"
-                  className="flex-1"
-                  onClick={() => {
-                    onAddToLibrary(book);
-                    onClose();
-                  }}
-                >
-                  + Add to Library
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={onClose}
-                >
-                  Cancel
-                </Button>
+                {showAddButton && onAddToLibrary ? (
+                  isInLibrary ? (
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="flex-1"
+                      disabled
+                    >
+                      <Check className="w-4 h-4 mr-2" />
+                      In Your Library
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="warm"
+                      size="lg"
+                      className="flex-1"
+                      onClick={() => {
+                        onAddToLibrary(book);
+                        onClose();
+                      }}
+                    >
+                      + Add to Library
+                    </Button>
+                  )
+                ) : (
+                  <Button
+                    variant="warm"
+                    size="lg"
+                    className="flex-1"
+                    onClick={onClose}
+                  >
+                    Close
+                  </Button>
+                )}
+                {showAddButton && onAddToLibrary && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={onClose}
+                  >
+                    Cancel
+                  </Button>
+                )}
               </div>
             </div>
           </motion.div>

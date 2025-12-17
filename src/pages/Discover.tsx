@@ -1,26 +1,27 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, ArrowLeft } from 'lucide-react';
+import { Search, ArrowLeft, Loader2 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BookDetailModal } from '@/components/BookDetailModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { freeBooks, genres, Book } from '@/data/books';
-import { toast } from 'sonner';
+import { usePublicBooks, PublicBook } from '@/hooks/usePublicBooks';
 import { cn } from '@/lib/utils';
 
 export default function Discover() {
   const navigate = useNavigate();
+  const { books, genres, isLoading, addToLibrary, isInLibrary } = usePublicBooks();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('All');
-  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [selectedBook, setSelectedBook] = useState<PublicBook | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const booksPerPage = 6;
+  const booksPerPage = 12;
 
-  const filteredBooks = freeBooks.filter(book => {
-    const matchesSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredBooks = books.filter(book => {
+    const matchesSearch = 
+      book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (book.author?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
     const matchesGenre = selectedGenre === 'All' || book.genre === selectedGenre;
     return matchesSearch && matchesGenre;
   });
@@ -31,8 +32,24 @@ export default function Discover() {
     currentPage * booksPerPage
   );
 
-  const handleAddToLibrary = (book: Book) => {
-    toast.success(`"${book.title}" added to your library!`);
+  const handleAddToLibrary = async (book: PublicBook) => {
+    await addToLibrary(book.id);
+  };
+
+  // Generate a gradient color based on book title for books without covers
+  const getBookGradient = (title: string) => {
+    const colors = [
+      'bg-gradient-to-br from-rose-100 to-rose-200',
+      'bg-gradient-to-br from-amber-100 to-yellow-200',
+      'bg-gradient-to-br from-slate-200 to-slate-300',
+      'bg-gradient-to-br from-purple-100 to-purple-200',
+      'bg-gradient-to-br from-blue-100 to-cyan-200',
+      'bg-gradient-to-br from-green-100 to-emerald-200',
+      'bg-gradient-to-br from-red-100 to-red-200',
+      'bg-gradient-to-br from-violet-100 to-violet-200',
+    ];
+    const hash = title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[hash % colors.length];
   };
 
   return (
@@ -57,7 +74,7 @@ export default function Discover() {
           <div className="flex flex-col md:flex-row gap-4">
             {/* Genre filter */}
             <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-              {genres.slice(0, 6).map(genre => (
+              {genres.slice(0, 8).map(genre => (
                 <Button
                   key={genre}
                   variant={selectedGenre === genre ? 'warm' : 'parchment'}
@@ -89,41 +106,76 @@ export default function Discover() {
           </div>
         </motion.div>
 
-        {/* Books Grid */}
-        <div className="space-y-6">
-          {paginatedBooks.map((book, index) => (
-            <motion.div
-              key={book.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="flex gap-4 p-4 bg-card rounded-2xl border border-border/50 hover:shadow-card transition-shadow cursor-pointer"
-              onClick={() => setSelectedBook(book)}
-            >
-              {/* Cover */}
-              <div className={cn(
-                "w-20 md:w-24 aspect-[2/3] rounded-xl flex-shrink-0 flex items-center justify-center",
-                book.coverColor
-              )}>
-                <span className="font-serif text-xs text-center px-2 text-foreground/80">
-                  {book.title}
-                </span>
-              </div>
+        {/* Loading state */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
 
-              {/* Details */}
-              <div className="flex-1 min-w-0">
-                <h3 className="font-serif text-lg text-foreground mb-1 truncate">{book.title}</h3>
-                <p className="text-sm text-muted-foreground mb-2">{book.author}</p>
-                <span className="inline-block px-2 py-0.5 bg-secondary text-secondary-foreground rounded-full text-xs mb-2">
-                  {book.genre}
-                </span>
-                <p className="text-sm text-muted-foreground line-clamp-2 hidden md:block">
-                  {book.description}
-                </p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+        {/* Books Grid */}
+        {!isLoading && (
+          <div className="space-y-6">
+            {paginatedBooks.map((book, index) => (
+              <motion.div
+                key={book.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="flex gap-4 p-4 bg-card rounded-2xl border border-border/50 hover:shadow-card transition-shadow cursor-pointer"
+                onClick={() => setSelectedBook(book)}
+              >
+                {/* Cover */}
+                {book.cover_url ? (
+                  <div className="w-20 md:w-24 aspect-[2/3] rounded-xl flex-shrink-0 overflow-hidden">
+                    <img
+                      src={book.cover_url}
+                      alt={book.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className={cn(
+                    "w-20 md:w-24 aspect-[2/3] rounded-xl flex-shrink-0 flex items-center justify-center",
+                    getBookGradient(book.title)
+                  )}>
+                    <span className="font-serif text-xs text-center px-2 text-foreground/80">
+                      {book.title}
+                    </span>
+                  </div>
+                )}
+
+                {/* Details */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-serif text-lg text-foreground mb-1 truncate">{book.title}</h3>
+                    {isInLibrary(book.id) && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full flex-shrink-0">
+                        In Library
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">{book.author || 'Unknown Author'}</p>
+                  {book.genre && (
+                    <span className="inline-block px-2 py-0.5 bg-secondary text-secondary-foreground rounded-full text-xs mb-2">
+                      {book.genre}
+                    </span>
+                  )}
+                  {book.is_featured && (
+                    <span className="inline-block ml-2 px-2 py-0.5 bg-primary text-primary-foreground rounded-full text-xs mb-2">
+                      Featured
+                    </span>
+                  )}
+                  {book.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 hidden md:block">
+                      {book.description}
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
 
         {/* Pagination */}
         {totalPages > 1 && (
@@ -143,9 +195,13 @@ export default function Discover() {
         )}
 
         {/* Empty state */}
-        {filteredBooks.length === 0 && (
+        {!isLoading && filteredBooks.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">No books found matching your criteria.</p>
+            <p className="text-muted-foreground">
+              {books.length === 0 
+                ? 'No books available yet. Check back soon!' 
+                : 'No books found matching your criteria.'}
+            </p>
           </div>
         )}
       </main>
@@ -156,6 +212,7 @@ export default function Discover() {
         isOpen={!!selectedBook}
         onClose={() => setSelectedBook(null)}
         onAddToLibrary={handleAddToLibrary}
+        isInLibrary={selectedBook ? isInLibrary(selectedBook.id) : false}
       />
     </div>
   );

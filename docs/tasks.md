@@ -473,18 +473,19 @@ create policy "Users can upload covers"
   - [x] Auto-detect `audio.mp3` and `sync.json` in numbered subfolders
   - [x] Batch upload all chapters at once
 
-### 7.1 Public Books
-- [ ] Seed `public_books` table with Project Gutenberg classics
-- [ ] Replace mock data with Supabase query
-- [ ] Genre filter (dropdown)
-- [ ] Search by title/author
-- [ ] Pagination (12 per page)
+### 7.1 Public Books ✅
+- [x] Replace mock data with Supabase query
+- [x] Genre filter (dropdown)
+- [x] Search by title/author
+- [x] Pagination (12 per page)
+- [ ] Seed `public_books` table with Project Gutenberg classics (optional)
 
-### 7.2 Add to Library
-- [ ] "Add to Library" button on each book
-- [ ] Use `user_public_books` junction table (no file duplication)
-- [ ] Show toast on success
-- [ ] Prevent duplicate additions
+### 7.2 Add to Library ✅
+- [x] "Add to Library" button on each book
+- [x] Use `user_public_books` junction table (no file duplication)
+- [x] Show toast on success
+- [x] Prevent duplicate additions
+- [x] Show "In Library" badge for already-added books
 
 ### 7.3 Public Book Playback
 - [ ] Stream audio directly from `public-library` bucket URLs

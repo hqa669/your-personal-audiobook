@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Search, Plus, ChevronRight, Loader2, BookOpen } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BookCard, LegacyBookCard, AddBookCard } from '@/components/BookCard';
-import { BookDetailModal } from '@/components/BookDetailModal';
+import { BookDetailModal, BookModalData } from '@/components/BookDetailModal';
 import { UploadBookModal } from '@/components/UploadBookModal';
 import { DeleteBookDialog } from '@/components/DeleteBookDialog';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 export default function Library() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [selectedBook, setSelectedBook] = useState<BookModalData | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [bookToDelete, setBookToDelete] = useState<UserBook | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -35,10 +35,17 @@ export default function Library() {
   };
 
   const handleFreeBookClick = (book: Book) => {
-    setSelectedBook(book);
+    setSelectedBook({
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      genre: book.genre,
+      description: book.description,
+      coverColor: book.coverColor,
+    });
   };
 
-  const handleAddToLibrary = (book: Book) => {
+  const handleAddToLibrary = (book: BookModalData) => {
     toast.success(`"${book.title}" added to your library!`);
     setSelectedBook(null);
   };

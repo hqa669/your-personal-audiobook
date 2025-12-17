@@ -80,6 +80,16 @@ export default function Admin() {
     }
   }, [isAdmin]);
 
+  // Sync selectedBook with actual books list (clear if book was deleted)
+  useEffect(() => {
+    if (selectedBook && books.length > 0) {
+      const bookStillExists = books.find(b => b.id === selectedBook.id);
+      if (!bookStillExists) {
+        setSelectedBook(null);
+      }
+    }
+  }, [books, selectedBook]);
+
   useEffect(() => {
     if (selectedBook) {
       fetchChapters(selectedBook.id);

@@ -249,59 +249,53 @@ export default function Admin() {
     }
   };
 
-  // Select folder and auto-detect audio/sync files
-  const handleSelectFolder = async () => {
-    try {
-      // Use File System Access API
-      const dirHandle = await (window as any).showDirectoryPicker();
+  // Handle folder selection via webkitdirectory input
+  const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const updatedChapters = [...epubChapters];
+    
+    // Process all files from the folder selection
+    Array.from(files).forEach(file => {
+      // File path looks like: "chapters/95/audio.mp3" or "95/audio.mp3"
+      const pathParts = file.webkitRelativePath.split('/');
       
-      const updatedChapters = [...epubChapters];
-      
-      for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'directory') {
-          // Check if folder name matches chapter number
-          const folderName = entry.name;
-          const chapterNum = parseInt(folderName, 10);
-          
-          if (!isNaN(chapterNum)) {
-            const chapterIndex = updatedChapters.findIndex(ch => ch.index === chapterNum);
-            if (chapterIndex !== -1) {
-              // Look for audio.mp3 and sync.json inside this folder
-              const subDirHandle = await dirHandle.getDirectoryHandle(folderName);
-              
-              for await (const subEntry of subDirHandle.values()) {
-                if (subEntry.kind === 'file') {
-                  if (subEntry.name.toLowerCase() === 'audio.mp3') {
-                    const file = await subEntry.getFile();
-                    updatedChapters[chapterIndex] = {
-                      ...updatedChapters[chapterIndex],
-                      audioFile: file,
-                    };
-                  } else if (subEntry.name.toLowerCase() === 'sync.json') {
-                    const file = await subEntry.getFile();
-                    updatedChapters[chapterIndex] = {
-                      ...updatedChapters[chapterIndex],
-                      syncFile: file,
-                    };
-                  }
-                }
-              }
+      // Find the chapter folder number in the path
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const folderName = pathParts[i];
+        const chapterNum = parseInt(folderName, 10);
+        
+        if (!isNaN(chapterNum)) {
+          const chapterIndex = updatedChapters.findIndex(ch => ch.index === chapterNum);
+          if (chapterIndex !== -1) {
+            const fileName = file.name.toLowerCase();
+            
+            if (fileName === 'audio.mp3') {
+              updatedChapters[chapterIndex] = {
+                ...updatedChapters[chapterIndex],
+                audioFile: file,
+              };
+            } else if (fileName === 'sync.json') {
+              updatedChapters[chapterIndex] = {
+                ...updatedChapters[chapterIndex],
+                syncFile: file,
+              };
             }
           }
+          break;
         }
       }
-      
-      setEpubChapters(updatedChapters);
-      
-      const foundAudio = updatedChapters.filter(ch => ch.audioFile).length;
-      const foundSync = updatedChapters.filter(ch => ch.syncFile).length;
-      toast.success(`Found ${foundAudio} audio files and ${foundSync} sync files`);
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Folder selection error:', err);
-        toast.error('Failed to select folder. Make sure your browser supports folder selection.');
-      }
-    }
+    });
+    
+    setEpubChapters(updatedChapters);
+    
+    const foundAudio = updatedChapters.filter(ch => ch.audioFile).length;
+    const foundSync = updatedChapters.filter(ch => ch.syncFile).length;
+    toast.success(`Found ${foundAudio} audio files and ${foundSync} sync files`);
+    
+    // Reset the input so the same folder can be selected again
+    event.target.value = '';
   };
 
   // Upload all chapters with files
@@ -626,15 +620,28 @@ export default function Admin() {
                 </div>
                 {selectedBook && !isParsingEpub && (
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleSelectFolder}
-                      disabled={epubChapters.length === 0}
-                    >
-                      <FolderOpen className="h-4 w-4 mr-1" />
-                      Select Folder
-                    </Button>
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        // @ts-ignore - webkitdirectory is non-standard
+                        webkitdirectory=""
+                        multiple
+                        className="hidden"
+                        onChange={handleFolderSelect}
+                        disabled={epubChapters.length === 0}
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        asChild
+                        disabled={epubChapters.length === 0}
+                      >
+                        <span>
+                          <FolderOpen className="h-4 w-4 mr-1" />
+                          Select Folder
+                        </span>
+                      </Button>
+                    </label>
                     <Button 
                       size="sm" 
                       onClick={handleUploadAll}

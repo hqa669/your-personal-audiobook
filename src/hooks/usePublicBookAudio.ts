@@ -59,7 +59,16 @@ export function usePublicBookAudio({
         const response = await fetch(syncUrl);
         if (!response.ok) throw new Error('Failed to fetch sync data');
         const data = await response.json();
-        setSyncData(data);
+        // Ensure data is an array
+        if (Array.isArray(data)) {
+          setSyncData(data);
+        } else if (data && typeof data === 'object' && Array.isArray(data.paragraphs)) {
+          // Handle case where sync data is wrapped in an object
+          setSyncData(data.paragraphs);
+        } else {
+          console.warn('Sync data is not in expected format:', data);
+          setSyncData([]);
+        }
       } catch (err) {
         console.error('Failed to load sync data:', err);
         setSyncData([]);
@@ -71,7 +80,7 @@ export function usePublicBookAudio({
 
   // Update current paragraph based on time
   useEffect(() => {
-    if (syncData.length === 0) return;
+    if (!Array.isArray(syncData) || syncData.length === 0) return;
 
     const paragraph = syncData.find(
       (entry) => currentTime >= entry.start && currentTime < entry.end

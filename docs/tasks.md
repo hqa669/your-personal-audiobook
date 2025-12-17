@@ -452,7 +452,20 @@ create policy "Users can upload covers"
 
 ---
 
-## Phase 7: Discovery Page
+## Phase 7: Discovery Page (Public Library)
+
+### 7.0 Database & Admin Setup ✅
+- [x] Extend `public_books` table with `slug`, `is_featured` columns
+- [x] Create `public_book_chapters` table for pre-generated audio
+- [x] Create `user_public_books` junction table (add-to-library without duplication)
+- [x] Create `public_book_progress` table for playback tracking
+- [x] Create `user_roles` table with `app_role` enum (admin/moderator/user)
+- [x] Create `has_role()` security definer function
+- [x] Set up RLS: public read, admin-only write for public books/chapters
+- [x] Create `public-library` storage bucket (public, CDN-backed)
+- [x] Storage policies: public read, admin upload/update/delete
+- [x] Admin UI page (`/admin`) for managing public books and chapters
+- [x] Admin hook (`useAdmin.ts`) for CRUD operations
 
 ### 7.1 Public Books
 - [ ] Seed `public_books` table with Project Gutenberg classics
@@ -463,9 +476,18 @@ create policy "Users can upload covers"
 
 ### 7.2 Add to Library
 - [ ] "Add to Library" button on each book
-- [ ] Copy book to user's library (creates new book record)
+- [ ] Use `user_public_books` junction table (no file duplication)
 - [ ] Show toast on success
 - [ ] Prevent duplicate additions
+
+### 7.3 Public Book Playback
+- [ ] Stream audio directly from `public-library` bucket URLs
+- [ ] Track progress in `public_book_progress` table
+- [ ] Resume from last position
+
+**Files created:**
+- `src/hooks/useAdmin.ts` - Admin CRUD operations
+- `src/pages/Admin.tsx` - Admin UI page
 
 **Reference file:** `src/pages/Discover.tsx`
 
@@ -558,9 +580,9 @@ create policy "Users can upload covers"
 | Phase 2: Cloud | ✅ Complete | Database schema + storage buckets created |
 | Phase 3: Auth | ✅ Complete | Auth context, protected routes, login/signup |
 | Phase 4: Upload | ✅ Complete | EPUB upload + parsing + storage |
-| Phase 5: TTS | 🔄 Next | AI voice generation |
-| Phase 6: Reader | ⏳ Pending | Partial UI exists |
-| Phase 7: Discovery | ⏳ Pending | Partial UI exists |
+| Phase 5: TTS | ✅ Complete | Fire-and-forget + 15min buffer |
+| Phase 6: Reader | ✅ Complete | Dual mode, chapter nav, progress |
+| Phase 7: Discovery | 🔄 In Progress | Admin UI done, public playback pending |
 | Phase 8: Polish | ⏳ Pending | Ongoing |
 | Phase 9: QA | ⏳ Pending | Final phase |
 | Phase 10: Deploy | ⏳ Pending | Launch |

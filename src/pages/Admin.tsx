@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Plus, Pencil, Trash2, Upload, Book, Music, Loader2, FolderOpen, CheckCircle2 } from 'lucide-react';
 import { Header } from '@/components/Header';
@@ -29,6 +30,7 @@ interface ChapterWithFiles {
   existingAudioUrl?: string;
   existingSyncUrl?: string;
   existingId?: string;
+  uploadStatus?: 'pending' | 'uploading' | 'finished' | 'error';
 }
 
 export default function Admin() {
@@ -54,6 +56,7 @@ export default function Admin() {
   const [editingBook, setEditingBook] = useState<PublicBook | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   
   // EPUB-based chapters
   const [epubChapters, setEpubChapters] = useState<ChapterWithFiles[]>([]);
@@ -194,6 +197,12 @@ export default function Admin() {
   };
 
   const handleDeleteBook = async (id: string) => {
+    // First delete all chapters associated with the book
+    const bookChapters = chapters.filter(ch => ch.book_id === id);
+    for (const ch of bookChapters) {
+      await deleteChapter(ch.id, id);
+    }
+    // Then delete the book
     await deletePublicBook(id);
     if (selectedBook?.id === id) {
       setSelectedBook(null);
@@ -309,12 +318,25 @@ export default function Admin() {
     }
     
     setIsUploading(true);
+    setUploadProgress({ current: 0, total: chaptersToUpload.length });
     let successCount = 0;
     let errorCount = 0;
     
     const slug = selectedBook.slug || selectedBook.title.toLowerCase().replace(/\s+/g, '-');
     
-    for (const chapter of chaptersToUpload) {
+    // Mark all chapters to upload as pending
+    setEpubChapters(prev => prev.map(ch => 
+      (ch.audioFile || ch.syncFile) ? { ...ch, uploadStatus: 'pending' as const } : ch
+    ));
+    
+    for (let i = 0; i < chaptersToUpload.length; i++) {
+      const chapter = chaptersToUpload[i];
+      
+      // Mark current chapter as uploading
+      setEpubChapters(prev => prev.map(ch => 
+        ch.index === chapter.index ? { ...ch, uploadStatus: 'uploading' as const } : ch
+      ));
+      
       try {
         let audioUrl = chapter.existingAudioUrl || '';
         let syncUrl = chapter.existingSyncUrl || '';
@@ -348,11 +370,23 @@ export default function Admin() {
             sync_url: syncUrl || undefined,
           });
           successCount++;
+          
+          // Mark chapter as finished
+          setEpubChapters(prev => prev.map(ch => 
+            ch.index === chapter.index ? { ...ch, uploadStatus: 'finished' as const } : ch
+          ));
         }
       } catch (err) {
         console.error(`Failed to upload chapter ${chapter.index}:`, err);
         errorCount++;
+        
+        // Mark chapter as error
+        setEpubChapters(prev => prev.map(ch => 
+          ch.index === chapter.index ? { ...ch, uploadStatus: 'error' as const } : ch
+        ));
       }
+      
+      setUploadProgress({ current: i + 1, total: chaptersToUpload.length });
     }
     
     setIsUploading(false);
@@ -659,6 +693,17 @@ export default function Admin() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Upload Progress Bar */}
+              {isUploading && (
+                <div className="mb-4 space-y-2">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Uploading chapters...</span>
+                    <span>{uploadProgress.current} / {uploadProgress.total}</span>
+                  </div>
+                  <Progress value={(uploadProgress.current / uploadProgress.total) * 100} className="h-2" />
+                </div>
+              )}
+              
               {!selectedBook ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Book className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -686,36 +731,49 @@ export default function Admin() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {epubChapters.map(chapter => (
-                        <TableRow key={chapter.index}>
-                          <TableCell className="font-mono">{chapter.index}</TableCell>
-                          <TableCell className="font-medium">{chapter.title}</TableCell>
-                          <TableCell>
-                            {chapter.audioFile ? (
+                      {epubChapters.map(chapter => {
+                        const renderBadge = (hasFile: File | null, existingUrl?: string) => {
+                          if (chapter.uploadStatus === 'finished') {
+                            return <Badge variant="default">✓ Finish</Badge>;
+                          }
+                          if (chapter.uploadStatus === 'uploading') {
+                            return (
+                              <Badge variant="outline" className="animate-pulse">
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Uploading
+                              </Badge>
+                            );
+                          }
+                          if (chapter.uploadStatus === 'error') {
+                            return <Badge variant="destructive">Error</Badge>;
+                          }
+                          if (hasFile) {
+                            return (
                               <Badge className="bg-audio-ready text-white">
                                 <CheckCircle2 className="h-3 w-3 mr-1" />
                                 Ready
                               </Badge>
-                            ) : chapter.existingAudioUrl ? (
-                              <Badge variant="default">✓ Uploaded</Badge>
-                            ) : (
-                              <Badge variant="secondary">—</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {chapter.syncFile ? (
-                              <Badge className="bg-audio-ready text-white">
-                                <CheckCircle2 className="h-3 w-3 mr-1" />
-                                Ready
-                              </Badge>
-                            ) : chapter.existingSyncUrl ? (
-                              <Badge variant="default">✓ Uploaded</Badge>
-                            ) : (
-                              <Badge variant="secondary">—</Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            );
+                          }
+                          if (existingUrl) {
+                            return <Badge variant="default">✓ Uploaded</Badge>;
+                          }
+                          return <Badge variant="secondary">—</Badge>;
+                        };
+                        
+                        return (
+                          <TableRow key={chapter.index}>
+                            <TableCell className="font-mono">{chapter.index}</TableCell>
+                            <TableCell className="font-medium">{chapter.title}</TableCell>
+                            <TableCell>
+                              {renderBadge(chapter.audioFile, chapter.existingAudioUrl)}
+                            </TableCell>
+                            <TableCell>
+                              {renderBadge(chapter.syncFile, chapter.existingSyncUrl)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

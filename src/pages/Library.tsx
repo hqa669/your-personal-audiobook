@@ -1,72 +1,162 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Plus, ChevronRight, Loader2, BookOpen } from 'lucide-react';
+import { Search, Plus, Loader2, BookOpen } from 'lucide-react';
 import { Header } from '@/components/Header';
-import { BookCard, LegacyBookCard, AddBookCard } from '@/components/BookCard';
-import { BookDetailModal, BookModalData } from '@/components/BookDetailModal';
+import { BookCard, AddBookCard } from '@/components/BookCard';
 import { UploadBookModal } from '@/components/UploadBookModal';
 import { DeleteBookDialog } from '@/components/DeleteBookDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { freeBooks, Book } from '@/data/books';
 import { useBooks, UserBook } from '@/hooks/useBooks';
+import { usePublicBooks, PublicBook } from '@/hooks/usePublicBooks';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+// Unified library book type
+interface LibraryBook {
+  id: string;
+  title: string;
+  author: string | null;
+  cover_url: string | null;
+  status: 'uploaded' | 'processing' | 'ready' | 'failed';
+  isPublicBook: boolean;
+  publicBookId?: string; // Original public book ID for routing
+}
 
 export default function Library() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBook, setSelectedBook] = useState<BookModalData | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [bookToDelete, setBookToDelete] = useState<UserBook | null>(null);
+  const [bookToDelete, setBookToDelete] = useState<LibraryBook | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [userPublicBooks, setUserPublicBooks] = useState<PublicBook[]>([]);
+  const [isLoadingPublicBooks, setIsLoadingPublicBooks] = useState(true);
   
-  const { books, isLoading, isUploading, uploadProgress, uploadBook, deleteBook } = useBooks();
+  const { books: userBooks, isLoading: isLoadingUserBooks, isUploading, uploadProgress, uploadBook, deleteBook } = useBooks();
 
-  const handleBookClick = (bookId: string, status: string) => {
-    // 'uploaded' and 'ready' are both readable (Phase 5 AI voice deferred)
-    if (status === 'ready' || status === 'uploaded') {
-      navigate(`/reader/${bookId}`);
-    } else if (status === 'processing') {
-      toast.info('This book is still processing. Please wait.');
-    } else if (status === 'failed') {
-      toast.error('Processing failed. Try re-uploading the book.');
+  // Fetch user's added public books
+  useEffect(() => {
+    if (!user) {
+      setUserPublicBooks([]);
+      setIsLoadingPublicBooks(false);
+      return;
     }
-  };
 
-  const handleFreeBookClick = (book: Book) => {
-    setSelectedBook({
+    const fetchUserPublicBooks = async () => {
+      setIsLoadingPublicBooks(true);
+      
+      // First get the public book IDs the user has added
+      const { data: userBookLinks, error: linksError } = await supabase
+        .from('user_public_books')
+        .select('public_book_id')
+        .eq('user_id', user.id);
+
+      if (linksError) {
+        console.error('Error fetching user public book links:', linksError);
+        setIsLoadingPublicBooks(false);
+        return;
+      }
+
+      if (!userBookLinks || userBookLinks.length === 0) {
+        setUserPublicBooks([]);
+        setIsLoadingPublicBooks(false);
+        return;
+      }
+
+      // Then fetch the actual public books
+      const publicBookIds = userBookLinks.map(link => link.public_book_id);
+      const { data: publicBooks, error: booksError } = await supabase
+        .from('public_books')
+        .select('*')
+        .in('id', publicBookIds);
+
+      if (booksError) {
+        console.error('Error fetching public books:', booksError);
+      } else {
+        setUserPublicBooks(publicBooks || []);
+      }
+      setIsLoadingPublicBooks(false);
+    };
+
+    fetchUserPublicBooks();
+  }, [user]);
+
+  // Merge user books and public books into unified list
+  const allBooks: LibraryBook[] = [
+    // User uploaded books
+    ...userBooks.map(book => ({
       id: book.id,
       title: book.title,
       author: book.author,
-      genre: book.genre,
-      description: book.description,
-      coverColor: book.coverColor,
-    });
+      cover_url: book.cover_url,
+      status: book.status,
+      isPublicBook: false,
+    })),
+    // User's added public books (always "ready" since audio is pre-generated)
+    ...userPublicBooks.map(book => ({
+      id: `public-${book.id}`,
+      title: book.title,
+      author: book.author,
+      cover_url: book.cover_url,
+      status: 'ready' as const,
+      isPublicBook: true,
+      publicBookId: book.id,
+    })),
+  ];
+
+  const isLoading = isLoadingUserBooks || isLoadingPublicBooks;
+
+  const handleBookClick = (book: LibraryBook) => {
+    if (book.isPublicBook) {
+      navigate(`/reader/public/${book.publicBookId}`);
+    } else {
+      // User uploaded books
+      if (book.status === 'ready' || book.status === 'uploaded') {
+        navigate(`/reader/${book.id}`);
+      } else if (book.status === 'processing') {
+        toast.info('This book is still processing. Please wait.');
+      } else if (book.status === 'failed') {
+        toast.error('Processing failed. Try re-uploading the book.');
+      }
+    }
   };
 
-  const handleAddToLibrary = (book: BookModalData) => {
-    toast.success(`"${book.title}" added to your library!`);
-    setSelectedBook(null);
-  };
-
-  const handleDeleteClick = (book: UserBook) => {
+  const handleDeleteClick = (book: LibraryBook) => {
     setBookToDelete(book);
   };
 
   const handleConfirmDelete = async () => {
-    if (!bookToDelete) return;
+    if (!bookToDelete || !user) return;
     
     setIsDeleting(true);
-    const success = await deleteBook(bookToDelete.id);
-    setIsDeleting(false);
     
-    if (success) {
-      setBookToDelete(null);
+    if (bookToDelete.isPublicBook && bookToDelete.publicBookId) {
+      // Remove public book from user's library
+      const { error } = await supabase
+        .from('user_public_books')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('public_book_id', bookToDelete.publicBookId);
+      
+      if (error) {
+        toast.error('Failed to remove book from library');
+      } else {
+        setUserPublicBooks(prev => prev.filter(b => b.id !== bookToDelete.publicBookId));
+        toast.success('Book removed from your library');
+      }
+    } else {
+      // Delete user uploaded book
+      await deleteBook(bookToDelete.id);
     }
+    
+    setIsDeleting(false);
+    setBookToDelete(null);
   };
 
-  const filteredBooks = books.filter(book =>
+  const filteredBooks = allBooks.filter(book =>
     book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (book.author?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
@@ -102,7 +192,14 @@ export default function Library() {
 
         {/* Your Library Section */}
         <section className="mb-12">
-          <h2 className="font-serif text-xl text-foreground mb-4">Your Library</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-serif text-xl text-foreground">Your Library</h2>
+            <Button variant="ghost" size="sm" asChild className="gap-1 text-primary">
+              <Link to="/discover">
+                Discover More
+              </Link>
+            </Button>
+          </div>
           
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -121,13 +218,18 @@ export default function Library() {
               <p className="text-muted-foreground mb-4">
                 {searchQuery 
                   ? 'Try a different search term' 
-                  : 'Upload your first EPUB to get started'}
+                  : 'Upload your own EPUB or browse free audiobooks'}
               </p>
               {!searchQuery && (
-                <Button variant="warm" onClick={() => setIsUploadModalOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Your First Book
-                </Button>
+                <div className="flex justify-center gap-3">
+                  <Button variant="warm" onClick={() => setIsUploadModalOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Upload Book
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link to="/discover">Browse Free Books</Link>
+                  </Button>
+                </div>
               )}
             </motion.div>
           ) : (
@@ -141,9 +243,19 @@ export default function Library() {
                     transition={{ delay: index * 0.1 }}
                   >
                     <BookCard
-                      book={book}
-                      showStatus
-                      onClick={() => handleBookClick(book.id, book.status)}
+                      book={{
+                        id: book.id,
+                        title: book.title,
+                        author: book.author,
+                        cover_url: book.cover_url,
+                        status: book.status,
+                        user_id: '',
+                        epub_url: '',
+                        created_at: '',
+                        updated_at: '',
+                      }}
+                      showStatus={!book.isPublicBook}
+                      onClick={() => handleBookClick(book)}
                       onDelete={() => handleDeleteClick(book)}
                     />
                   </motion.div>
@@ -157,43 +269,16 @@ export default function Library() {
                   <div
                     className="h-full bg-primary transition-all duration-500"
                     style={{ 
-                      width: `${(books.filter(b => b.status === 'ready').length / books.length) * 100}%` 
+                      width: `${(allBooks.filter(b => b.status === 'ready').length / allBooks.length) * 100}%` 
                     }}
                   />
                 </div>
                 <span className="text-sm text-muted-foreground">
-                  {books.filter(b => b.status === 'ready').length}/{books.length} ready
+                  {allBooks.filter(b => b.status === 'ready').length}/{allBooks.length} ready
                 </span>
               </div>
             </>
           )}
-        </section>
-
-        {/* Explore Free Books Section */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-serif text-xl text-foreground">Explore Free Books</h2>
-            <Button variant="ghost" size="sm" asChild className="gap-1 text-primary">
-              <Link to="/discover">
-                More <ChevronRight className="w-4 h-4" />
-              </Link>
-            </Button>
-          </div>
-          <div className="scroll-smooth-x">
-            {freeBooks.slice(0, 5).map((book, index) => (
-              <motion.div
-                key={book.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + index * 0.1 }}
-              >
-                <LegacyBookCard
-                  book={book}
-                  onClick={() => handleFreeBookClick(book)}
-                />
-              </motion.div>
-            ))}
-          </div>
         </section>
       </main>
 
@@ -204,14 +289,6 @@ export default function Library() {
         onUpload={uploadBook}
         isUploading={isUploading}
         uploadProgress={uploadProgress}
-      />
-
-      {/* Book Detail Modal */}
-      <BookDetailModal
-        book={selectedBook}
-        isOpen={!!selectedBook}
-        onClose={() => setSelectedBook(null)}
-        onAddToLibrary={handleAddToLibrary}
       />
 
       {/* Delete Confirmation Dialog */}

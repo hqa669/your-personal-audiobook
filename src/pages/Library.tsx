@@ -296,8 +296,7 @@ export default function Library() {
             
             <div className="scroll-smooth-x">
               {(() => {
-                const availableBooks = allPublicBooks.filter(book => !isInLibrary(book.id));
-                const shuffled = [...availableBooks].sort(() => Math.random() - 0.5);
+                const shuffled = [...allPublicBooks].sort(() => Math.random() - 0.5);
                 return shuffled.slice(0, 5);
               })().map((book, index) => (
                   <motion.div
@@ -305,6 +304,7 @@ export default function Library() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
+                    className="relative"
                   >
                     <BookCard
                       book={{
@@ -321,6 +321,11 @@ export default function Library() {
                       showStatus={false}
                       onClick={() => navigate(`/reader/public/${book.id}`)}
                     />
+                    {isInLibrary(book.id) && (
+                      <div className="absolute top-2 left-2 bg-primary/90 text-primary-foreground text-xs px-2 py-0.5 rounded-full">
+                        In Library
+                      </div>
+                    )}
                   </motion.div>
                 ))}
             </div>

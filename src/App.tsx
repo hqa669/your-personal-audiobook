@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import Library from "./pages/Library";
 import Discover from "./pages/Discover";
 import Reader from "./pages/Reader";
+import PublicReader from "./pages/PublicReader";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Reader />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/reader/public/:id" 
+              element={
+                <ProtectedRoute>
+                  <PublicReader />
                 </ProtectedRoute>
               } 
             />

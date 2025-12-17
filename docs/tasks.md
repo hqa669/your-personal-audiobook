@@ -486,15 +486,24 @@ create policy "Users can upload covers"
 - [x] Show toast on success
 - [x] Prevent duplicate additions
 - [x] Show "In Library" badge for already-added books
+- [x] Public books appear mixed with user-uploaded books in Library page
 
-### 7.3 Public Book Playback
-- [ ] Stream audio directly from `public-library` bucket URLs
-- [ ] Track progress in `public_book_progress` table
-- [ ] Resume from last position
+### 7.3 Public Book Playback ✅
+- [x] New route `/reader/public/:id` for public book reader
+- [x] Stream audio directly from `public_book_chapters.audio_url`
+- [x] Sync file highlighting based on `public_book_chapters.sync_url` (paragraph-level timestamps)
+- [x] Track progress in `public_book_progress` table
+- [x] Resume from last position
+- [x] Play button instead of "Generate Voice" button (audio is pre-generated)
+- [x] Created `usePublicBookReader.ts` hook for public book data
+- [x] Created `usePublicBookAudio.ts` hook for audio playback with sync highlighting
 
 **Files created:**
 - `src/hooks/useAdmin.ts` - Admin CRUD operations
 - `src/pages/Admin.tsx` - Admin UI page
+- `src/hooks/usePublicBookReader.ts` - Public book reader hook
+- `src/hooks/usePublicBookAudio.ts` - Public book audio with sync
+- `src/pages/PublicReader.tsx` - Public book reader page
 
 **Reference file:** `src/pages/Discover.tsx`
 

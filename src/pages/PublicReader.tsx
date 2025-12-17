@@ -267,21 +267,6 @@ export default function PublicReader() {
                 </div>
               )}
 
-              {/* Chapter progress slider */}
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground w-10">Ch {chapterIndex + 1}</span>
-                <Slider
-                  value={[progressPercent]}
-                  onValueChange={(value) => {
-                    const newIndex = Math.round((value[0] / 100) * (totalChapters - 1));
-                    goToChapter(newIndex);
-                  }}
-                  max={100}
-                  step={1}
-                  className="flex-1"
-                />
-                <span className="text-xs text-muted-foreground w-10">{totalChapters}</span>
-              </div>
 
               {/* Audio controls */}
               <div className="flex items-center justify-between">

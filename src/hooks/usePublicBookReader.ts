@@ -201,8 +201,36 @@ export function usePublicBookReader(publicBookId: string | undefined) {
     goToChapter((chapterIndex ?? 0) - 1);
   }, [chapterIndex, goToChapter]);
 
-  // Get current chapter audio info
-  const currentChapterAudio = publicChapters.find(c => c.chapter_index === chapterIndex);
+  // Get current chapter audio info - match by title since EPUB may have extra chapters (preface, title page, etc.)
+  const currentChapterAudio = (() => {
+    if (!currentChapter || publicChapters.length === 0) return undefined;
+    
+    // First try exact title match
+    const byTitle = publicChapters.find(c => 
+      c.title.toLowerCase().trim() === currentChapter.title.toLowerCase().trim()
+    );
+    if (byTitle) return byTitle;
+    
+    // Try partial match (chapter title contains the audio chapter title or vice versa)
+    const byPartialMatch = publicChapters.find(c => 
+      currentChapter.title.toLowerCase().includes(c.title.toLowerCase()) ||
+      c.title.toLowerCase().includes(currentChapter.title.toLowerCase())
+    );
+    if (byPartialMatch) return byPartialMatch;
+    
+    // Fallback: try matching by chapter number extraction
+    const chapterNumMatch = currentChapter.title.match(/chapter\s*(\d+)/i);
+    if (chapterNumMatch) {
+      const chapterNum = parseInt(chapterNumMatch[1], 10);
+      const byChapterNum = publicChapters.find(c => {
+        const audioChapterMatch = c.title.match(/chapter\s*(\d+)/i);
+        return audioChapterMatch && parseInt(audioChapterMatch[1], 10) === chapterNum;
+      });
+      if (byChapterNum) return byChapterNum;
+    }
+    
+    return undefined;
+  })();
 
   return {
     book,

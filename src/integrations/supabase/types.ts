@@ -168,6 +168,82 @@ export type Database = {
         }
         Relationships: []
       }
+      public_book_chapters: {
+        Row: {
+          audio_url: string
+          book_id: string
+          chapter_index: number
+          created_at: string | null
+          duration_seconds: number | null
+          id: string
+          sync_url: string | null
+          title: string
+        }
+        Insert: {
+          audio_url: string
+          book_id: string
+          chapter_index: number
+          created_at?: string | null
+          duration_seconds?: number | null
+          id?: string
+          sync_url?: string | null
+          title: string
+        }
+        Update: {
+          audio_url?: string
+          book_id?: string
+          chapter_index?: number
+          created_at?: string | null
+          duration_seconds?: number | null
+          id?: string
+          sync_url?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_book_chapters_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "public_books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_book_progress: {
+        Row: {
+          chapter_index: number | null
+          id: string
+          position_seconds: number | null
+          public_book_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          chapter_index?: number | null
+          id?: string
+          position_seconds?: number | null
+          public_book_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          chapter_index?: number | null
+          id?: string
+          position_seconds?: number | null
+          public_book_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_book_progress_public_book_id_fkey"
+            columns: ["public_book_id"]
+            isOneToOne: false
+            referencedRelation: "public_books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       public_books: {
         Row: {
           author: string | null
@@ -177,6 +253,8 @@ export type Database = {
           epub_url: string
           genre: string | null
           id: string
+          is_featured: boolean | null
+          slug: string | null
           title: string
         }
         Insert: {
@@ -187,6 +265,8 @@ export type Database = {
           epub_url: string
           genre?: string | null
           id?: string
+          is_featured?: boolean | null
+          slug?: string | null
           title: string
         }
         Update: {
@@ -197,7 +277,59 @@ export type Database = {
           epub_url?: string
           genre?: string | null
           id?: string
+          is_featured?: boolean | null
+          slug?: string | null
           title?: string
+        }
+        Relationships: []
+      }
+      user_public_books: {
+        Row: {
+          added_at: string | null
+          id: string
+          public_book_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string | null
+          id?: string
+          public_book_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string | null
+          id?: string
+          public_book_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_public_books_public_book_id_fkey"
+            columns: ["public_book_id"]
+            isOneToOne: false
+            referencedRelation: "public_books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -206,9 +338,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "moderator" | "user"
       book_status: "uploaded" | "processing" | "ready" | "failed"
     }
     CompositeTypes: {
@@ -337,6 +476,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "moderator", "user"],
       book_status: ["uploaded", "processing", "ready", "failed"],
     },
   },

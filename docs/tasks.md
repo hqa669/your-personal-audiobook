@@ -466,6 +466,12 @@ create policy "Users can upload covers"
 - [x] Storage policies: public read, admin upload/update/delete
 - [x] Admin UI page (`/admin`) for managing public books and chapters
 - [x] Admin hook (`useAdmin.ts`) for CRUD operations
+- [x] **Admin page enhancements:**
+  - [x] Auto-parse EPUB to populate chapter list
+  - [x] Remove duration column (not needed)
+  - [x] Folder selection using File System Access API
+  - [x] Auto-detect `audio.mp3` and `sync.json` in numbered subfolders
+  - [x] Batch upload all chapters at once
 
 ### 7.1 Public Books
 - [ ] Seed `public_books` table with Project Gutenberg classics

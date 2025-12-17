@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAdmin, PublicBook, PublicBookChapter, NewPublicBook, NewPublicBookChapter } from '@/hooks/useAdmin';
+import { useAdmin, PublicBook, PublicBookChapter, NewPublicBook } from '@/hooks/useAdmin';
 import { useAuth } from '@/contexts/AuthContext';
+import { parseEpubChapters, Chapter as EpubChapter } from '@/lib/epub-chapter-parser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,16 +10,26 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, Upload, Book, Music, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Upload, Book, Music, Loader2, FolderOpen, CheckCircle2 } from 'lucide-react';
 import { Header } from '@/components/Header';
+import { toast } from 'sonner';
 
 const GENRES = ['Fiction', 'Non-Fiction', 'Science Fiction', 'Fantasy', 'Mystery', 'Romance', 'Biography', 'History', 'Philosophy', 'Poetry', 'Classic'];
+
+interface ChapterWithFiles {
+  index: number;
+  title: string;
+  audioFile: File | null;
+  syncFile: File | null;
+  existingAudioUrl?: string;
+  existingSyncUrl?: string;
+  existingId?: string;
+}
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -34,17 +45,19 @@ export default function Admin() {
     updatePublicBook, 
     deletePublicBook,
     addChapter,
-    updateChapter,
     deleteChapter,
     uploadFile,
   } = useAdmin();
 
   const [selectedBook, setSelectedBook] = useState<PublicBook | null>(null);
   const [isBookDialogOpen, setIsBookDialogOpen] = useState(false);
-  const [isChapterDialogOpen, setIsChapterDialogOpen] = useState(false);
   const [editingBook, setEditingBook] = useState<PublicBook | null>(null);
-  const [editingChapter, setEditingChapter] = useState<PublicBookChapter | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // EPUB-based chapters
+  const [epubChapters, setEpubChapters] = useState<ChapterWithFiles[]>([]);
+  const [isParsingEpub, setIsParsingEpub] = useState(false);
 
   // Book form state
   const [bookForm, setBookForm] = useState<NewPublicBook>({
@@ -56,16 +69,6 @@ export default function Admin() {
     epub_url: '',
     slug: '',
     is_featured: false,
-  });
-
-  // Chapter form state
-  const [chapterForm, setChapterForm] = useState<NewPublicBookChapter>({
-    book_id: '',
-    chapter_index: 0,
-    title: '',
-    audio_url: '',
-    sync_url: '',
-    duration_seconds: 0,
   });
 
   useEffect(() => {
@@ -86,15 +89,58 @@ export default function Admin() {
       const bookStillExists = books.find(b => b.id === selectedBook.id);
       if (!bookStillExists) {
         setSelectedBook(null);
+        setEpubChapters([]);
       }
     }
   }, [books, selectedBook]);
 
+  // Parse EPUB when book is selected
   useEffect(() => {
     if (selectedBook) {
       fetchChapters(selectedBook.id);
+      parseBookEpub(selectedBook);
+    } else {
+      setEpubChapters([]);
     }
   }, [selectedBook]);
+
+  // Merge existing chapters with parsed EPUB chapters
+  useEffect(() => {
+    if (epubChapters.length > 0 && chapters.length > 0) {
+      setEpubChapters(prev => prev.map(ch => {
+        const existing = chapters.find(c => c.chapter_index === ch.index);
+        if (existing) {
+          return {
+            ...ch,
+            existingAudioUrl: existing.audio_url,
+            existingSyncUrl: existing.sync_url || undefined,
+            existingId: existing.id,
+          };
+        }
+        return ch;
+      }));
+    }
+  }, [chapters]);
+
+  const parseBookEpub = async (book: PublicBook) => {
+    setIsParsingEpub(true);
+    try {
+      const parsed = await parseEpubChapters(book.epub_url);
+      const chapterList: ChapterWithFiles[] = parsed.chapters.map((ch, idx) => ({
+        index: idx + 1, // 1-based index for folder matching
+        title: ch.title,
+        audioFile: null,
+        syncFile: null,
+      }));
+      setEpubChapters(chapterList);
+    } catch (err) {
+      console.error('Failed to parse EPUB:', err);
+      toast.error('Failed to parse EPUB file');
+      setEpubChapters([]);
+    } finally {
+      setIsParsingEpub(false);
+    }
+  };
 
   // Loading state
   if (authLoading || isLoading) {
@@ -151,35 +197,8 @@ export default function Admin() {
     await deletePublicBook(id);
     if (selectedBook?.id === id) {
       setSelectedBook(null);
+      setEpubChapters([]);
     }
-  };
-
-  const handleAddChapter = async () => {
-    if (!selectedBook) return;
-    setIsSubmitting(true);
-    const success = await addChapter({ ...chapterForm, book_id: selectedBook.id });
-    setIsSubmitting(false);
-    if (success) {
-      setIsChapterDialogOpen(false);
-      resetChapterForm();
-    }
-  };
-
-  const handleUpdateChapter = async () => {
-    if (!editingChapter) return;
-    setIsSubmitting(true);
-    const success = await updateChapter(editingChapter.id, chapterForm);
-    setIsSubmitting(false);
-    if (success) {
-      setIsChapterDialogOpen(false);
-      setEditingChapter(null);
-      resetChapterForm();
-    }
-  };
-
-  const handleDeleteChapter = async (id: string) => {
-    if (!selectedBook) return;
-    await deleteChapter(id, selectedBook.id);
   };
 
   const resetBookForm = () => {
@@ -192,17 +211,6 @@ export default function Admin() {
       epub_url: '',
       slug: '',
       is_featured: false,
-    });
-  };
-
-  const resetChapterForm = () => {
-    setChapterForm({
-      book_id: selectedBook?.id || '',
-      chapter_index: chapters.length,
-      title: '',
-      audio_url: '',
-      sync_url: '',
-      duration_seconds: 0,
     });
   };
 
@@ -221,55 +229,151 @@ export default function Admin() {
     setIsBookDialogOpen(true);
   };
 
-  const openEditChapter = (chapter: PublicBookChapter) => {
-    setEditingChapter(chapter);
-    setChapterForm({
-      book_id: chapter.book_id,
-      chapter_index: chapter.chapter_index,
-      title: chapter.title,
-      audio_url: chapter.audio_url,
-      sync_url: chapter.sync_url || '',
-      duration_seconds: chapter.duration_seconds || 0,
-    });
-    setIsChapterDialogOpen(true);
-  };
-
-  const handleFileUpload = async (file: File, type: 'epub' | 'cover' | 'audio' | 'sync') => {
-    if (!selectedBook && type !== 'epub' && type !== 'cover') return;
-    
+  const handleBookFileUpload = async (file: File, type: 'epub' | 'cover') => {
     const slug = bookForm.slug || bookForm.title.toLowerCase().replace(/\s+/g, '-');
     let path = '';
     
-    switch (type) {
-      case 'epub':
-        path = `books/${slug}/book.epub`;
-        break;
-      case 'cover':
-        path = `books/${slug}/cover.jpg`;
-        break;
-      case 'audio':
-        const audioIndex = String(chapterForm.chapter_index).padStart(3, '0');
-        path = `books/${selectedBook?.slug || slug}/chapters/${audioIndex}.mp3`;
-        break;
-      case 'sync':
-        const syncIndex = String(chapterForm.chapter_index).padStart(3, '0');
-        path = `books/${selectedBook?.slug || slug}/chapters/${syncIndex}.sync.json`;
-        break;
+    if (type === 'epub') {
+      path = `books/${slug}/book.epub`;
+    } else {
+      path = `books/${slug}/cover.jpg`;
     }
 
     const url = await uploadFile(file, path);
     if (url) {
       if (type === 'epub') {
         setBookForm(prev => ({ ...prev, epub_url: url }));
-      } else if (type === 'cover') {
+      } else {
         setBookForm(prev => ({ ...prev, cover_url: url }));
-      } else if (type === 'audio') {
-        setChapterForm(prev => ({ ...prev, audio_url: url }));
-      } else if (type === 'sync') {
-        setChapterForm(prev => ({ ...prev, sync_url: url }));
       }
     }
   };
+
+  // Select folder and auto-detect audio/sync files
+  const handleSelectFolder = async () => {
+    try {
+      // Use File System Access API
+      const dirHandle = await (window as any).showDirectoryPicker();
+      
+      const updatedChapters = [...epubChapters];
+      
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'directory') {
+          // Check if folder name matches chapter number
+          const folderName = entry.name;
+          const chapterNum = parseInt(folderName, 10);
+          
+          if (!isNaN(chapterNum)) {
+            const chapterIndex = updatedChapters.findIndex(ch => ch.index === chapterNum);
+            if (chapterIndex !== -1) {
+              // Look for audio.mp3 and sync.json inside this folder
+              const subDirHandle = await dirHandle.getDirectoryHandle(folderName);
+              
+              for await (const subEntry of subDirHandle.values()) {
+                if (subEntry.kind === 'file') {
+                  if (subEntry.name.toLowerCase() === 'audio.mp3') {
+                    const file = await subEntry.getFile();
+                    updatedChapters[chapterIndex] = {
+                      ...updatedChapters[chapterIndex],
+                      audioFile: file,
+                    };
+                  } else if (subEntry.name.toLowerCase() === 'sync.json') {
+                    const file = await subEntry.getFile();
+                    updatedChapters[chapterIndex] = {
+                      ...updatedChapters[chapterIndex],
+                      syncFile: file,
+                    };
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      setEpubChapters(updatedChapters);
+      
+      const foundAudio = updatedChapters.filter(ch => ch.audioFile).length;
+      const foundSync = updatedChapters.filter(ch => ch.syncFile).length;
+      toast.success(`Found ${foundAudio} audio files and ${foundSync} sync files`);
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Folder selection error:', err);
+        toast.error('Failed to select folder. Make sure your browser supports folder selection.');
+      }
+    }
+  };
+
+  // Upload all chapters with files
+  const handleUploadAll = async () => {
+    if (!selectedBook) return;
+    
+    const chaptersToUpload = epubChapters.filter(ch => ch.audioFile || ch.syncFile);
+    if (chaptersToUpload.length === 0) {
+      toast.error('No files to upload. Select a folder first.');
+      return;
+    }
+    
+    setIsUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+    
+    const slug = selectedBook.slug || selectedBook.title.toLowerCase().replace(/\s+/g, '-');
+    
+    for (const chapter of chaptersToUpload) {
+      try {
+        let audioUrl = chapter.existingAudioUrl || '';
+        let syncUrl = chapter.existingSyncUrl || '';
+        
+        // Upload audio file if present
+        if (chapter.audioFile) {
+          const audioPath = `books/${slug}/chapters/${String(chapter.index).padStart(3, '0')}.mp3`;
+          const url = await uploadFile(chapter.audioFile, audioPath);
+          if (url) audioUrl = url;
+        }
+        
+        // Upload sync file if present
+        if (chapter.syncFile) {
+          const syncPath = `books/${slug}/chapters/${String(chapter.index).padStart(3, '0')}.sync.json`;
+          const url = await uploadFile(chapter.syncFile, syncPath);
+          if (url) syncUrl = url;
+        }
+        
+        // If chapter exists, delete it first (we'll recreate)
+        if (chapter.existingId) {
+          await deleteChapter(chapter.existingId, selectedBook.id);
+        }
+        
+        // Add/update chapter record
+        if (audioUrl) {
+          await addChapter({
+            book_id: selectedBook.id,
+            chapter_index: chapter.index,
+            title: chapter.title,
+            audio_url: audioUrl,
+            sync_url: syncUrl || undefined,
+          });
+          successCount++;
+        }
+      } catch (err) {
+        console.error(`Failed to upload chapter ${chapter.index}:`, err);
+        errorCount++;
+      }
+    }
+    
+    setIsUploading(false);
+    
+    if (errorCount === 0) {
+      toast.success(`Successfully uploaded ${successCount} chapters`);
+    } else {
+      toast.warning(`Uploaded ${successCount} chapters, ${errorCount} failed`);
+    }
+    
+    // Refresh chapters list
+    await fetchChapters(selectedBook.id);
+  };
+
+  const hasFilesToUpload = epubChapters.some(ch => ch.audioFile || ch.syncFile);
 
   return (
     <div className="min-h-screen bg-background">
@@ -390,7 +494,7 @@ export default function Admin() {
                               className="hidden"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) handleFileUpload(file, 'epub');
+                                if (file) handleBookFileUpload(file, 'epub');
                               }}
                             />
                             <Button type="button" variant="outline" asChild>
@@ -415,7 +519,7 @@ export default function Admin() {
                               className="hidden"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) handleFileUpload(file, 'cover');
+                                if (file) handleBookFileUpload(file, 'cover');
                               }}
                             />
                             <Button type="button" variant="outline" asChild>
@@ -512,124 +616,38 @@ export default function Admin() {
                     {selectedBook ? `Chapters: ${selectedBook.title}` : 'Chapters'}
                   </CardTitle>
                   <CardDescription>
-                    {selectedBook ? `${chapters.length} chapter(s)` : 'Select a book to manage chapters'}
+                    {selectedBook 
+                      ? isParsingEpub 
+                        ? 'Parsing EPUB...' 
+                        : `${epubChapters.length} chapter(s) from EPUB`
+                      : 'Select a book to manage chapters'
+                    }
                   </CardDescription>
                 </div>
-                {selectedBook && (
-                  <Dialog open={isChapterDialogOpen} onOpenChange={(open) => {
-                    setIsChapterDialogOpen(open);
-                    if (!open) {
-                      setEditingChapter(null);
-                      resetChapterForm();
-                    }
-                  }}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" onClick={() => resetChapterForm()}>
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Chapter
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>{editingChapter ? 'Edit Chapter' : 'Add New Chapter'}</DialogTitle>
-                        <DialogDescription>
-                          {editingChapter ? 'Update the chapter details below.' : 'Enter the details for the new chapter.'}
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="chapter_index">Chapter Index *</Label>
-                            <Input
-                              id="chapter_index"
-                              type="number"
-                              min={0}
-                              value={chapterForm.chapter_index}
-                              onChange={(e) => setChapterForm(prev => ({ ...prev, chapter_index: parseInt(e.target.value) || 0 }))}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="duration">Duration (seconds)</Label>
-                            <Input
-                              id="duration"
-                              type="number"
-                              min={0}
-                              value={chapterForm.duration_seconds || ''}
-                              onChange={(e) => setChapterForm(prev => ({ ...prev, duration_seconds: parseInt(e.target.value) || 0 }))}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="chapter_title">Title *</Label>
-                          <Input
-                            id="chapter_title"
-                            value={chapterForm.title}
-                            onChange={(e) => setChapterForm(prev => ({ ...prev, title: e.target.value }))}
-                            placeholder="Chapter 1: The Beginning"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Audio File (MP3) *</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              value={chapterForm.audio_url}
-                              onChange={(e) => setChapterForm(prev => ({ ...prev, audio_url: e.target.value }))}
-                              placeholder="https://storage.url/chapter.mp3"
-                              className="flex-1"
-                            />
-                            <label className="cursor-pointer">
-                              <input
-                                type="file"
-                                accept=".mp3,audio/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleFileUpload(file, 'audio');
-                                }}
-                              />
-                              <Button type="button" variant="outline" asChild>
-                                <span><Upload className="h-4 w-4" /></span>
-                              </Button>
-                            </label>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Sync File (JSON)</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              value={chapterForm.sync_url}
-                              onChange={(e) => setChapterForm(prev => ({ ...prev, sync_url: e.target.value }))}
-                              placeholder="https://storage.url/sync.json"
-                              className="flex-1"
-                            />
-                            <label className="cursor-pointer">
-                              <input
-                                type="file"
-                                accept=".json"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleFileUpload(file, 'sync');
-                                }}
-                              />
-                              <Button type="button" variant="outline" asChild>
-                                <span><Upload className="h-4 w-4" /></span>
-                              </Button>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button 
-                          onClick={editingChapter ? handleUpdateChapter : handleAddChapter}
-                          disabled={!chapterForm.title || !chapterForm.audio_url || isSubmitting}
-                        >
-                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          {editingChapter ? 'Update Chapter' : 'Add Chapter'}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                {selectedBook && !isParsingEpub && (
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleSelectFolder}
+                      disabled={epubChapters.length === 0}
+                    >
+                      <FolderOpen className="h-4 w-4 mr-1" />
+                      Select Folder
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      onClick={handleUploadAll}
+                      disabled={!hasFilesToUpload || isUploading}
+                    >
+                      {isUploading ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4 mr-1" />
+                      )}
+                      Upload All
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -639,76 +657,61 @@ export default function Admin() {
                   <Book className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>Select a book from the list to manage its chapters</p>
                 </div>
-              ) : chapters.length === 0 ? (
+              ) : isParsingEpub ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin opacity-50" />
+                  <p>Parsing EPUB file...</p>
+                </div>
+              ) : epubChapters.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Music className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No chapters yet. Add your first chapter above.</p>
+                  <p>No chapters found in EPUB file.</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">#</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Audio</TableHead>
-                      <TableHead>Sync</TableHead>
-                      <TableHead className="w-24">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {chapters.map(chapter => (
-                      <TableRow key={chapter.id}>
-                        <TableCell className="font-mono">{chapter.chapter_index}</TableCell>
-                        <TableCell className="font-medium">{chapter.title}</TableCell>
-                        <TableCell>
-                          {chapter.duration_seconds 
-                            ? `${Math.floor(chapter.duration_seconds / 60)}:${String(chapter.duration_seconds % 60).padStart(2, '0')}`
-                            : '-'
-                          }
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={chapter.audio_url ? 'default' : 'secondary'}>
-                            {chapter.audio_url ? '✓' : '—'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={chapter.sync_url ? 'default' : 'secondary'}>
-                            {chapter.sync_url ? '✓' : '—'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditChapter(chapter)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete this chapter?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently delete this chapter. This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteChapter(chapter.id)} className="bg-destructive text-destructive-foreground">
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </TableCell>
+                <div className="max-h-[500px] overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">#</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead className="w-32">Audio</TableHead>
+                        <TableHead className="w-32">Sync</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {epubChapters.map(chapter => (
+                        <TableRow key={chapter.index}>
+                          <TableCell className="font-mono">{chapter.index}</TableCell>
+                          <TableCell className="font-medium">{chapter.title}</TableCell>
+                          <TableCell>
+                            {chapter.audioFile ? (
+                              <Badge className="bg-audio-ready text-white">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Ready
+                              </Badge>
+                            ) : chapter.existingAudioUrl ? (
+                              <Badge variant="default">✓ Uploaded</Badge>
+                            ) : (
+                              <Badge variant="secondary">—</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {chapter.syncFile ? (
+                              <Badge className="bg-audio-ready text-white">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Ready
+                              </Badge>
+                            ) : chapter.existingSyncUrl ? (
+                              <Badge variant="default">✓ Uploaded</Badge>
+                            ) : (
+                              <Badge variant="secondary">—</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

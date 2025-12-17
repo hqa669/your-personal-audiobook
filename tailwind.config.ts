@@ -59,6 +59,7 @@ export default {
         parchment: "hsl(var(--parchment))",
         forest: "hsl(var(--forest))",
         amber: "hsl(var(--amber))",
+        "audio-ready": "hsl(var(--audio-ready))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

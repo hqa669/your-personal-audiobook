@@ -36,6 +36,7 @@ export default function Library() {
   const [isLoadingPublicBooks, setIsLoadingPublicBooks] = useState(true);
   
   const { books: userBooks, isLoading: isLoadingUserBooks, isUploading, uploadProgress, uploadBook, deleteBook } = useBooks();
+  const { books: allPublicBooks, isLoading: isLoadingAllPublicBooks, addToLibrary, isInLibrary } = usePublicBooks();
 
   // Fetch user's added public books
   useEffect(() => {
@@ -280,6 +281,50 @@ export default function Library() {
             </>
           )}
         </section>
+
+        {/* Explore Free Classics Section */}
+        {!isLoadingAllPublicBooks && allPublicBooks.length > 0 && (
+          <section className="mb-12">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-serif text-xl text-foreground">Explore Free Classics</h2>
+              <Button variant="ghost" size="sm" asChild className="gap-1 text-primary">
+                <Link to="/discover">
+                  View All
+                </Link>
+              </Button>
+            </div>
+            
+            <div className="scroll-smooth-x">
+              {allPublicBooks
+                .filter(book => !isInLibrary(book.id))
+                .slice(0, 6)
+                .map((book, index) => (
+                  <motion.div
+                    key={book.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <BookCard
+                      book={{
+                        id: book.id,
+                        title: book.title,
+                        author: book.author,
+                        cover_url: book.cover_url,
+                        status: 'ready' as const,
+                        user_id: '',
+                        epub_url: book.epub_url,
+                        created_at: book.created_at,
+                        updated_at: book.created_at,
+                      }}
+                      showStatus={false}
+                      onClick={() => navigate(`/reader/public/${book.id}`)}
+                    />
+                  </motion.div>
+                ))}
+            </div>
+          </section>
+        )}
       </main>
 
       {/* Upload Modal */}

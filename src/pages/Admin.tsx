@@ -197,12 +197,7 @@ export default function Admin() {
   };
 
   const handleDeleteBook = async (id: string) => {
-    // First delete all chapters associated with the book
-    const bookChapters = chapters.filter(ch => ch.book_id === id);
-    for (const ch of bookChapters) {
-      await deleteChapter(ch.id, id);
-    }
-    // Then delete the book
+    // Cascade delete is set up at database level - chapters will be deleted automatically
     await deletePublicBook(id);
     if (selectedBook?.id === id) {
       setSelectedBook(null);

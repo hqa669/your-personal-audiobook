@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, ArrowLeft, Loader2 } from 'lucide-react';
+import { Search, ArrowLeft } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BookDetailModal } from '@/components/BookDetailModal';
+import { BookCardSkeleton } from '@/components/BookCardSkeleton';
+import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { usePublicBooks, PublicBook } from '@/hooks/usePublicBooks';
@@ -108,8 +110,10 @@ export default function Discover() {
 
         {/* Loading state */}
         {isLoading && (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <BookCardSkeleton key={i} />
+            ))}
           </div>
         )}
 
@@ -196,13 +200,11 @@ export default function Discover() {
 
         {/* Empty state */}
         {!isLoading && filteredBooks.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">
-              {books.length === 0 
-                ? 'No books available yet. Check back soon!' 
-                : 'No books found matching your criteria.'}
-            </p>
-          </div>
+          <EmptyState
+            variant={books.length === 0 ? 'discover' : 'search'}
+            title={books.length === 0 ? undefined : 'No books found'}
+            description={books.length === 0 ? undefined : 'Try adjusting your search or filters.'}
+          />
         )}
       </main>
 

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Library from "./pages/Library";
@@ -23,52 +24,54 @@ const App = () => (
       <Sonner position="top-center" />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route 
-              path="/library" 
-              element={
-                <ProtectedRoute>
-                  <Library />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/discover" 
-              element={
-                <ProtectedRoute>
-                  <Discover />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/reader/:id" 
-              element={
-                <ProtectedRoute>
-                  <Reader />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/reader/public/:id" 
-              element={
-                <ProtectedRoute>
-                  <PublicReader />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute>
-                  <Admin />
-                </ProtectedRoute>
-              } 
-            />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route 
+                path="/library" 
+                element={
+                  <ProtectedRoute>
+                    <Library />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/discover" 
+                element={
+                  <ProtectedRoute>
+                    <Discover />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/reader/:id" 
+                element={
+                  <ProtectedRoute>
+                    <Reader />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/reader/public/:id" 
+                element={
+                  <ProtectedRoute>
+                    <PublicReader />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin" 
+                element={
+                  <ProtectedRoute>
+                    <Admin />
+                  </ProtectedRoute>
+                } 
+              />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </ErrorBoundary>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

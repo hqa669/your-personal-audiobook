@@ -192,7 +192,7 @@ export default function Library() {
                 className="pl-10 input-warm"
               />
             </div>
-            <Button variant="warm" className="gap-2" onClick={() => setIsUploadModalOpen(true)}>
+            <Button variant="warm" className="gap-2" onClick={() => navigate('/discover')}>
               <Plus className="w-4 h-4" />
               <span className="hidden md:inline">New Book</span>
             </Button>
@@ -250,7 +250,7 @@ export default function Library() {
                     />
                   </motion.div>
                 ))}
-                <AddBookCard onClick={() => setIsUploadModalOpen(true)} />
+                <AddBookCard onClick={() => navigate('/discover')} />
               </div>
 
               {/* Progress bar for library */}

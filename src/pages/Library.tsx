@@ -246,7 +246,6 @@ export default function Library() {
                       }}
                       showStatus={!book.isPublicBook}
                       onClick={() => handleBookClick(book)}
-                      onDelete={() => handleDeleteClick(book)}
                     />
                   </motion.div>
                 ))}

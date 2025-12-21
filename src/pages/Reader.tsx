@@ -14,12 +14,22 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Sparkles
+  Sparkles,
+  MoreVertical,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { DeleteBookDialog } from '@/components/DeleteBookDialog';
 import { useBookReader } from '@/hooks/useBookReader';
 import { useChapterAudio } from '@/hooks/useChapterAudio';
+import { useBooks } from '@/hooks/useBooks';
 import { ChapterListSheet } from '@/components/ChapterListSheet';
 import { cn } from '@/lib/utils';
 
@@ -29,6 +39,10 @@ export default function Reader() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [fontSize, setFontSize] = useState(18);
   const [showControls, setShowControls] = useState(true);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const { deleteBook } = useBooks();
 
   const {
     book,
@@ -73,6 +87,17 @@ export default function Reader() {
     ? Math.round((chapterIndex / (totalChapters - 1)) * 100) 
     : 0;
 
+  const handleDeleteBook = async () => {
+    if (!id) return;
+    setIsDeleting(true);
+    const success = await deleteBook(id);
+    setIsDeleting(false);
+    if (success) {
+      navigate('/library');
+    }
+    setShowDeleteDialog(false);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -98,10 +123,11 @@ export default function Reader() {
   }
 
   return (
-    <div className={cn(
-      "min-h-screen transition-colors duration-300",
-      isDarkMode ? "bg-slate-900 text-slate-100" : "bg-background text-foreground"
-    )}>
+    <>
+      <div className={cn(
+        "min-h-screen transition-colors duration-300",
+        isDarkMode ? "bg-slate-900 text-slate-100" : "bg-background text-foreground"
+      )}>
       {/* Header */}
       <AnimatePresence>
         {showControls && (
@@ -132,6 +158,22 @@ export default function Reader() {
                 >
                   {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                 </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="w-5 h-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="z-50 bg-background">
+                    <DropdownMenuItem
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Book
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </motion.header>
@@ -399,5 +441,15 @@ export default function Reader() {
         )}
       </AnimatePresence>
     </div>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteBookDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleDeleteBook}
+        bookTitle={book?.title || ''}
+        isDeleting={isDeleting}
+      />
+    </>
   );
 }

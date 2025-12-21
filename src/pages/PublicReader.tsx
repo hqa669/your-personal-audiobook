@@ -14,13 +14,33 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  MoreVertical,
+  BookMinus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { usePublicBookReader } from '@/hooks/usePublicBookReader';
 import { usePublicBookAudio } from '@/hooks/usePublicBookAudio';
+import { usePublicBooks } from '@/hooks/usePublicBooks';
 import { ChapterListSheet } from '@/components/ChapterListSheet';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export default function PublicReader() {
   const navigate = useNavigate();
@@ -28,6 +48,10 @@ export default function PublicReader() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [fontSize, setFontSize] = useState(18);
   const [showControls, setShowControls] = useState(true);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  const { removeFromLibrary, isInLibrary } = usePublicBooks();
 
   const {
     book,
@@ -77,6 +101,21 @@ export default function PublicReader() {
 
   // Calculate audio progress percentage
   const audioProgress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  // Check if book is in library
+  const bookInLibrary = id ? isInLibrary(id) : false;
+
+  const handleRemoveFromLibrary = async () => {
+    if (!id) return;
+    setIsRemoving(true);
+    const success = await removeFromLibrary(id);
+    setIsRemoving(false);
+    if (success) {
+      toast.success('Book removed from your library');
+      navigate('/library');
+    }
+    setShowRemoveDialog(false);
+  };
 
   if (isLoading) {
     return (
@@ -137,6 +176,24 @@ export default function PublicReader() {
                 >
                   {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                 </Button>
+                {bookInLibrary && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreVertical className="w-5 h-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-50 bg-background">
+                      <DropdownMenuItem
+                        onClick={() => setShowRemoveDialog(true)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <BookMinus className="w-4 h-4 mr-2" />
+                        Remove from Library
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </div>
           </motion.header>
@@ -388,6 +445,38 @@ export default function PublicReader() {
           </motion.footer>
         )}
       </AnimatePresence>
+
+      {/* Remove from Library Confirmation Dialog */}
+      <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove "{book?.title}" from library?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the book from your personal library. You can always add it back later from the Discover page.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRemoving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleRemoveFromLibrary();
+              }}
+              disabled={isRemoving}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isRemoving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                'Remove from Library'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

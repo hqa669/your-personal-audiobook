@@ -113,6 +113,8 @@ export function BookCard({ book, onClick, onDelete, showStatus = false, classNam
                   <button
                     type="button"
                     className="menu-button bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+                    onPointerDownCapture={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <MoreVertical className="w-3 h-3 text-foreground" />
                   </button>

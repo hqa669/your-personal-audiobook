@@ -40,7 +40,7 @@ export function BookCard({ book, onClick, onDelete, showStatus = false, classNam
   const coverColor = getColorForBook(book.title);
   const [menuOpen, setMenuOpen] = useState(false);
   
-  const handleCardClick = (e: React.PointerEvent) => {
+  const handleCardClick = (e: React.MouseEvent) => {
     // Safety guard: don't navigate if the interaction started inside the menu
     if ((e.target as HTMLElement).closest('[data-menu]')) return;
     if (menuOpen) return;
@@ -56,7 +56,7 @@ export function BookCard({ book, onClick, onDelete, showStatus = false, classNam
         "book-card cursor-pointer flex-shrink-0 w-40 md:w-48 group relative",
         className
       )}
-      onPointerUp={handleCardClick}
+      onClick={handleCardClick}
     >
       <div className={cn(
         "aspect-[2/3] rounded-xl flex items-center justify-center relative overflow-hidden",

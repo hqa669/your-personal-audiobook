@@ -61,6 +61,9 @@ export default function PublicReader() {
   // Cut-off detection: first eligible paragraph index on the current page (page-relative)
   const [firstCutOffIndex, setFirstCutOffIndex] = useState<number | null>(null);
 
+  // Gate layout reads until page transition animations settle (prevents measure/cutoff thrash)
+  const [pageLayoutStable, setPageLayoutStable] = useState(false);
+
   // Measure container on mount and resize
   useEffect(() => {
     const measureContainer = () => {
@@ -119,8 +122,16 @@ export default function PublicReader() {
     return currentParagraphIndex - currentParagraphOnPage;
   }, [currentParagraphIndex, currentParagraphOnPage, pageParagraphs.length]);
 
-  // Measure paragraphs after they render
+  // Reset layout stability on page/chapter/layout changes
+  useEffect(() => {
+    setPageLayoutStable(false);
+    setFirstCutOffIndex(null);
+  }, [currentPageIndex, chapterIndex, fontSize, containerHeight]);
+
+  // Measure paragraphs after they render (only once page layout is stable)
   useLayoutEffect(() => {
+    if (!pageLayoutStable) return;
+
     // Delay measurement to ensure DOM is ready after animation
     const raf = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -128,10 +139,12 @@ export default function PublicReader() {
       });
     });
     return () => cancelAnimationFrame(raf);
-  }, [currentPageIndex, fontSize, containerHeight, measureParagraphs]);
+  }, [pageLayoutStable, currentPageIndex, fontSize, containerHeight, measureParagraphs]);
 
   // Cut-off analysis (runs on render/layout changes)
   useLayoutEffect(() => {
+    if (!pageLayoutStable) return;
+
     const containerEl = contentContainerRef.current;
     if (!containerEl) return;
 
@@ -207,7 +220,7 @@ export default function PublicReader() {
     return () => {
       cancelAnimationFrame(raf);
     };
-  }, [currentPageIndex, pageParagraphs, containerHeight, fontSize]);
+  }, [pageLayoutStable, currentPageIndex, pageParagraphs, containerHeight, fontSize]);
 
   const {
     isPlaying,
@@ -458,6 +471,8 @@ export default function PublicReader() {
                 animate="center"
                 exit="exit"
                 transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
+                onAnimationStart={() => setPageLayoutStable(false)}
+                onAnimationComplete={() => setPageLayoutStable(true)}
                 ref={contentContainerRef}
                 className="page-container"
                 style={{ height: containerHeight, overflow: 'hidden' }}

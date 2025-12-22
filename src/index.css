@@ -314,7 +314,7 @@
 
   /* Scrollable paragraph when too long */
   .paragraph-scrollable {
-    max-height: 50vh;
+    max-height: 70vh;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--primary) / 0.3) transparent;

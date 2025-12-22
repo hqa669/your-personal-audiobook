@@ -14,7 +14,7 @@ const variants = {
   library: {
     icon: Book,
     defaultTitle: "Your library is empty",
-    defaultDescription: "Upload your first EPUB to start listening. Your cozy reading nook awaits.",
+    defaultDescription: "Explore timeless classics and add your first audiobook to start listening.",
   },
   search: {
     icon: Search,

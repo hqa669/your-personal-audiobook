@@ -219,8 +219,8 @@ export default function Library() {
           ) : filteredBooks.length === 0 ? (
             <EmptyState
               variant={searchQuery ? 'search' : 'library'}
-              actionLabel={searchQuery ? undefined : 'Upload Book'}
-              onAction={searchQuery ? undefined : () => setIsUploadModalOpen(true)}
+              actionLabel={searchQuery ? undefined : 'Discover'}
+              onAction={searchQuery ? undefined : () => navigate('/discover')}
             />
           ) : (
             <>

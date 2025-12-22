@@ -64,6 +64,9 @@ export default function PublicReader() {
   // Gate layout reads until page transition animations settle (prevents measure/cutoff thrash)
   const [pageLayoutStable, setPageLayoutStable] = useState(false);
 
+  // Track whether measurements have been taken this page cycle (cut-off waits for this)
+  const measurementsDoneRef = useRef(false);
+
   // Measure container on mount and resize
   useEffect(() => {
     const measureContainer = () => {
@@ -126,6 +129,7 @@ export default function PublicReader() {
   useEffect(() => {
     setPageLayoutStable(false);
     setFirstCutOffIndex(null);
+    measurementsDoneRef.current = false;
   }, [currentPageIndex, chapterIndex, fontSize, containerHeight]);
 
   // Measure paragraphs after they render (only once page layout is stable)
@@ -136,14 +140,15 @@ export default function PublicReader() {
     const raf = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         measureParagraphs();
+        measurementsDoneRef.current = true;
       });
     });
     return () => cancelAnimationFrame(raf);
   }, [pageLayoutStable, currentPageIndex, fontSize, containerHeight, measureParagraphs]);
 
-  // Cut-off analysis (runs on render/layout changes)
+  // Cut-off analysis (runs after measurements are done)
   useLayoutEffect(() => {
-    if (!pageLayoutStable) return;
+    if (!pageLayoutStable || !measurementsDoneRef.current) return;
 
     const containerEl = contentContainerRef.current;
     if (!containerEl) return;

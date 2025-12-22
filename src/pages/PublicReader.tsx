@@ -56,6 +56,7 @@ export default function PublicReader() {
   
   // Measure container height for dynamic pagination
   const contentContainerRef = useRef<HTMLDivElement>(null);
+  const paragraphRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [containerHeight, setContainerHeight] = useState(400);
   const [avgParagraphHeight, setAvgParagraphHeight] = useState(150);
 
@@ -184,9 +185,37 @@ export default function PublicReader() {
     }
   };
 
-  // Handle paragraph click
+  // Handle paragraph click - detect cut-off and advance if needed
   const handleParagraphClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    const paragraphEl = paragraphRefs.current[pageRelativeIndex];
+    const containerEl = contentContainerRef.current;
+    
+    if (paragraphEl && containerEl) {
+      const containerRect = containerEl.getBoundingClientRect();
+      const paragraphRect = paragraphEl.getBoundingClientRect();
+      
+      // Check if this paragraph is cut off at the bottom
+      const isCutOff = 
+        paragraphRect.bottom > containerRect.bottom && 
+        paragraphRect.top < containerRect.bottom;
+      
+      if (isCutOff) {
+        // Advance to make this paragraph the first on the next page
+        const absoluteIndex = pageStartIndex + pageRelativeIndex;
+        setPageDirection('next');
+        goToParagraph(absoluteIndex);
+        
+        // Also seek audio if available
+        if (hasSyncData && hasAudio) {
+          seekToParagraph(absoluteIndex);
+        }
+        return;
+      }
+    }
+    
+    // Normal selection behavior
     selectParagraph(pageRelativeIndex);
 
     // If audio has sync data, seek to this paragraph
@@ -340,6 +369,7 @@ export default function PublicReader() {
                   return (
                     <motion.div
                       key={`${currentPageIndex}-${index}`}
+                      ref={(el) => { paragraphRefs.current[index] = el; }}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ 
                         opacity: 1,

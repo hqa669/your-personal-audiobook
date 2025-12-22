@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -60,6 +60,9 @@ export default function PublicReader() {
   const [containerHeight, setContainerHeight] = useState(400);
   const [avgParagraphHeight, setAvgParagraphHeight] = useState(150);
 
+  // Cut-off detection: first eligible paragraph index on the current page (page-relative)
+  const [firstCutOffIndex, setFirstCutOffIndex] = useState<number | null>(null);
+
   // Measure container on mount and resize
   useEffect(() => {
     const measureContainer = () => {
@@ -112,6 +115,85 @@ export default function PublicReader() {
 
   // Current page's absolute start index (matches pagination model inside usePaginatedReader)
   const pageStartIndex = currentPageIndex * Math.max(1, paragraphsPerPage - 1);
+
+  // Cut-off analysis (runs on render/layout changes)
+  useLayoutEffect(() => {
+    const containerEl = contentContainerRef.current;
+    if (!containerEl) return;
+
+    // Clear immediately to avoid stale click gating while page swaps
+    setFirstCutOffIndex(null);
+
+    let raf = 0;
+    let tries = 0;
+
+    const analyze = () => {
+      const containerRect = containerEl.getBoundingClientRect();
+
+      const refs = paragraphRefs.current.slice(0, pageParagraphs.length);
+      const readyCount = refs.filter(Boolean).length;
+      const allReady = readyCount === pageParagraphs.length;
+
+      // If refs aren’t ready yet (AnimatePresence / staggered mount), try again next frame.
+      if (!allReady && tries < 6) {
+        tries += 1;
+        raf = requestAnimationFrame(analyze);
+        return;
+      }
+
+      let found: number | null = null;
+
+      if (import.meta.env.DEV) {
+        console.groupCollapsed(
+          `[CutOff] Page ${currentPageIndex} analysis (paras=${pageParagraphs.length}, ready=${readyCount})`
+        );
+      }
+
+      for (let i = 0; i < pageParagraphs.length; i++) {
+        const el = paragraphRefs.current[i];
+        if (!el) {
+          if (import.meta.env.DEV) {
+            console.log(`Paragraph ${i}: <missing ref>`);
+          }
+          continue;
+        }
+
+        const elRect = el.getBoundingClientRect();
+        const cutOffPx = elRect.bottom - containerRect.bottom;
+        const cutOffRatio = elRect.height > 0 ? cutOffPx / elRect.height : 0;
+        const intersectsBottom =
+          elRect.top < containerRect.bottom && elRect.bottom > containerRect.bottom;
+
+        if (import.meta.env.DEV) {
+          console.log(`Paragraph ${i}`, {
+            cutOffRatio: Number(cutOffRatio.toFixed(3)),
+            cutOffPx: Number(cutOffPx.toFixed(1)),
+            height: Number(elRect.height.toFixed(1)),
+            intersectsBottom,
+          });
+        }
+
+        if (intersectsBottom && cutOffRatio > 0.25) {
+          found = i;
+          break;
+        }
+      }
+
+      if (import.meta.env.DEV) {
+        console.log('First eligible cut-off index:', found);
+        console.groupEnd();
+      }
+
+      setFirstCutOffIndex((prev) => (prev === found ? prev : found));
+    };
+
+    // Run on the next paint to reduce sensitivity to initial transforms
+    raf = requestAnimationFrame(() => requestAnimationFrame(analyze));
+
+    return () => {
+      cancelAnimationFrame(raf);
+    };
+  }, [currentPageIndex, pageParagraphs, containerHeight, fontSize]);
 
   const {
     isPlaying,
@@ -189,54 +271,38 @@ export default function PublicReader() {
   // Only the FIRST paragraph that is >25% cut off is eligible to trigger page advance
   const handleParagraphClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    const containerEl = contentContainerRef.current;
-    if (!containerEl) return;
-    
-    const containerRect = containerEl.getBoundingClientRect();
-    
-    // Find the first eligible cut-off paragraph on this page
-    let firstEligibleIndex: number | null = null;
-    
-    for (let i = 0; i < pageParagraphs.length; i++) {
-      const el = paragraphRefs.current[i];
-      if (!el) continue;
-      
-      const elRect = el.getBoundingClientRect();
-      const cutOffPx = elRect.bottom - containerRect.bottom;
-      const cutOffRatio = elRect.height > 0 ? cutOffPx / elRect.height : 0;
-      const intersectsBottom = elRect.top < containerRect.bottom && elRect.bottom > containerRect.bottom;
-      
-      // Dev-only logging
-      if (import.meta.env.DEV && intersectsBottom) {
-        console.log(`[CutOff] Paragraph ${i}: cutOffRatio=${cutOffRatio.toFixed(3)}, cutOffPx=${cutOffPx.toFixed(1)}, height=${elRect.height.toFixed(1)}`);
-      }
-      
-      if (intersectsBottom && cutOffRatio > 0.25) {
-        firstEligibleIndex = i;
-        break; // First one found
-      }
+
+    if (import.meta.env.DEV) {
+      console.log('[CutOff] Clicked index:', pageRelativeIndex);
+      console.log('[CutOff] First eligible cut-off index:', firstCutOffIndex);
     }
-    
-    // Only advance if user clicked the first eligible cut-off paragraph
-    if (firstEligibleIndex !== null && pageRelativeIndex === firstEligibleIndex) {
-      const absoluteIndex = pageStartIndex + pageRelativeIndex;
-      
-      if (import.meta.env.DEV) {
-        console.log(`[CutOff] Advancing to paragraph ${absoluteIndex}`);
+
+    // If a cut-off paragraph exists on this page, ONLY it is allowed to advance
+    if (typeof firstCutOffIndex === 'number') {
+      if (pageRelativeIndex !== firstCutOffIndex) {
+        if (import.meta.env.DEV) {
+          console.log('[CutOff] Ignored click (not first eligible cut-off paragraph)');
+        }
+        return;
       }
-      
+
+      const absoluteIndex = pageStartIndex + pageRelativeIndex;
+
+      if (import.meta.env.DEV) {
+        console.log('[CutOff] Advancing to paragraph', absoluteIndex);
+      }
+
       setPageDirection('next');
       goToParagraph(absoluteIndex);
-      
+
       // Also seek audio if available
       if (hasSyncData && hasAudio) {
         seekToParagraph(absoluteIndex);
       }
       return;
     }
-    
-    // Normal selection behavior
+
+    // No eligible cut-off paragraph on this page → normal selection behavior
     selectParagraph(pageRelativeIndex);
 
     // If audio has sync data, seek to this paragraph

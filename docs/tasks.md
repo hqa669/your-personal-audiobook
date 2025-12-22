@@ -489,10 +489,10 @@ create policy "Users can upload covers"
 - [x] Created `usePublicBookAudio.ts` hook for audio playback with sync highlighting
 - [x] Fix auto page flip on last/cut-off paragraph in Public Reader
 
-### 7.3.1 PublicReader Cut-off Click Reliability (Debug + Fix)
-- [ ] Debug & stabilize click-to-advance for cut-off paragraphs (useLayoutEffect measurement + `firstCutOffIndex`)
-- [ ] Confirm only the first >25% cut-off paragraph is clickable; others ignore clicks
-- [ ] Verify behavior during paragraph entrance animations and after resizing
+### 7.3.1 PublicReader Cut-off Click Reliability (Debug + Fix) ✅ COMPLETE
+- [x] Debug & stabilize click-to-advance for cut-off paragraphs (useLayoutEffect measurement + `firstCutOffIndex`)
+- [x] Confirm only the first >25% cut-off paragraph is clickable; others ignore clicks
+- [x] Verify behavior during paragraph entrance animations and after resizing
 
 **Files created:**
 - `src/hooks/useAdmin.ts` - Admin CRUD operations

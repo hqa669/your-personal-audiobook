@@ -67,6 +67,7 @@ export default function PublicReader() {
 
   // Track whether measurements have been taken this page cycle (cut-off waits for this)
   const measurementsDoneRef = useRef(false);
+  const [paragraphOverflow, setParagraphOverflow] = useState<boolean[]>([]);
 
   // Measure container on mount and resize
   useEffect(() => {
@@ -235,6 +236,43 @@ export default function PublicReader() {
       cancelAnimationFrame(raf);
     };
   }, [pageLayoutStable, currentPageIndex, pageParagraphs, containerHeight, fontSize]);
+
+  // Detect per-paragraph overflow after layout settles
+  useLayoutEffect(() => {
+    if (!pageLayoutStable) return;
+
+    const raf = requestAnimationFrame(() => {
+      const nextOverflow: boolean[] = [];
+
+      for (let i = 0; i < pageParagraphs.length; i++) {
+        const el = paragraphRefs.current[i];
+        if (!el) {
+          nextOverflow[i] = false;
+          continue;
+        }
+
+        const p = el.querySelector('p');
+        if (!p) {
+          nextOverflow[i] = false;
+          continue;
+        }
+
+        nextOverflow[i] = p.scrollHeight > p.clientHeight;
+      }
+
+      setParagraphOverflow((prev) => {
+        if (prev.length !== nextOverflow.length) return nextOverflow;
+        for (let i = 0; i < nextOverflow.length; i++) {
+          if (prev[i] !== nextOverflow[i]) {
+            return nextOverflow;
+          }
+        }
+        return prev;
+      });
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [pageLayoutStable, pageParagraphs.length, currentPageIndex]);
 
   const {
     isPlaying,
@@ -503,6 +541,8 @@ export default function PublicReader() {
                   const isAudioSynced = hasSyncData && isPlaying;
                   const isAdvanceParagraph = effectiveAdvanceIndex === index;
                   
+                  const shouldScroll = isCurrentParagraph && paragraphOverflow[index];
+
                   return (
                     <motion.div
                       key={`${currentPageIndex}-${index}`}
@@ -537,7 +577,7 @@ export default function PublicReader() {
                       }}
                     >
                       <p className={cn(
-                        isCurrentParagraph && "paragraph-scrollable"
+                        shouldScroll && "paragraph-scrollable"
                       )}>
                         {paragraph}
                       </p>

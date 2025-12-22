@@ -318,6 +318,13 @@ export default function PublicReader() {
     const absoluteIndex = pageStartIndex + pageRelativeIndex;
 
     if (import.meta.env.DEV) {
+      console.log({
+        pageRelativeIndex,
+        effectiveAdvanceIndex,
+        pageParagraphsLength: pageParagraphs.length,
+        pageStartIndex,
+        currentPageIndex,
+      });
       console.log('[Reader] Clicked paragraph:', pageRelativeIndex, '(absolute:', absoluteIndex, ')');
       console.log('[Reader] Effective advance index:', effectiveAdvanceIndex);
     }
@@ -330,7 +337,7 @@ export default function PublicReader() {
 
       // Advance page - this paragraph becomes first on next page
       setPageDirection('next');
-      goToParagraph(absoluteIndex);
+      goToNextPage();
 
       // Also seek audio if available
       if (hasSyncData && hasAudio) {

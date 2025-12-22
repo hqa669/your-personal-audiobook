@@ -327,14 +327,17 @@ export default function PublicReader() {
                 animate="center"
                 exit="exit"
                 transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
+                ref={contentContainerRef}
                 className="page-container"
+                style={{ height: containerHeight, overflow: 'hidden' }}
               >
                 {pageParagraphs.map((paragraph, index) => {
                   const isCurrentParagraph = currentParagraphOnPage === index;
                   const isAudioSynced = hasSyncData && isPlaying;
+                  const isLastVisible = index === pageParagraphs.length - 1;
                   
                   return (
-                    <motion.p
+                    <motion.div
                       key={`${currentPageIndex}-${index}`}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ 
@@ -351,7 +354,8 @@ export default function PublicReader() {
                         "reading-paragraph mb-4",
                         isDarkMode ? "text-slate-200" : "text-foreground/90",
                         isCurrentParagraph && "current",
-                        isCurrentParagraph && isAudioSynced && "playing"
+                        isCurrentParagraph && isAudioSynced && "playing",
+                        isLastVisible && "last-cutoff"
                       )}
                       role="button"
                       tabIndex={0}
@@ -363,41 +367,16 @@ export default function PublicReader() {
                         }
                       }}
                     >
-                      {paragraph}
-                    </motion.p>
+                      <p className={cn(
+                        isCurrentParagraph && "paragraph-scrollable"
+                      )}>
+                        {paragraph}
+                      </p>
+                    </motion.div>
                   );
                 })}
               </motion.div>
             </AnimatePresence>
-            
-            {/* Page indicator */}
-            <div className="flex justify-center items-center gap-2 mt-8">
-              {Array.from({ length: Math.min(pageCount, 7) }).map((_, i) => {
-                let dotIndex = i;
-                if (pageCount > 7) {
-                  // Show first 3, current area, last 3
-                  if (currentPageIndex < 3) {
-                    dotIndex = i;
-                  } else if (currentPageIndex > pageCount - 4) {
-                    dotIndex = pageCount - 7 + i;
-                  } else {
-                    dotIndex = currentPageIndex - 3 + i;
-                  }
-                }
-                return (
-                  <motion.div
-                    key={dotIndex}
-                    className={cn(
-                      "rounded-full transition-all duration-300",
-                      dotIndex === currentPageIndex 
-                        ? "w-6 h-2 bg-primary" 
-                        : "w-2 h-2 bg-muted-foreground/30"
-                    )}
-                    layout
-                  />
-                );
-              })}
-            </div>
           </article>
         ) : (
           <div className="flex items-center justify-center h-64">

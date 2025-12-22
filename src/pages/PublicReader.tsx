@@ -51,6 +51,7 @@ export default function PublicReader() {
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const [pageDirection, setPageDirection] = useState<'next' | 'prev'>('next');
+  const [suppressAutoSelection, setSuppressAutoSelection] = useState(false);
 
   const { removeFromLibrary, isInLibrary } = usePublicBooks();
   
@@ -329,6 +330,7 @@ export default function PublicReader() {
   const handleNextPage = () => {
     if (hasNextPage) {
       setPageDirection('next');
+      setSuppressAutoSelection(true);
       goToNextPage();
     } else if (hasNextChapter) {
       setPageDirection('next');
@@ -339,6 +341,7 @@ export default function PublicReader() {
   const handlePrevPage = () => {
     if (hasPrevPage) {
       setPageDirection('prev');
+      setSuppressAutoSelection(true);
       goToPrevPage();
     } else if (hasPrevChapter) {
       setPageDirection('prev');
@@ -349,6 +352,7 @@ export default function PublicReader() {
   // Handle paragraph click - select paragraph and sync audio
   const handleParagraphClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    setSuppressAutoSelection(false);
 
     const absoluteIndex = pageStartIndex + pageRelativeIndex;
 
@@ -372,6 +376,7 @@ export default function PublicReader() {
   // Handle double-click - advance to next paragraph (useful for long paragraphs)
   const handleParagraphDoubleClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    setSuppressAutoSelection(false);
 
     const absoluteIndex = pageStartIndex + pageRelativeIndex;
     const nextParagraphIndex = absoluteIndex + 1;
@@ -537,7 +542,7 @@ export default function PublicReader() {
                 }}
               >
                 {pageParagraphs.map((paragraph, index) => {
-                  const isCurrentParagraph = currentParagraphOnPage === index;
+                  const isCurrentParagraph = !suppressAutoSelection && currentParagraphOnPage === index;
                   const isAudioSynced = hasSyncData && isPlaying;
                   const isAdvanceParagraph = effectiveAdvanceIndex === index;
                   

@@ -496,6 +496,7 @@ create policy "Users can upload covers"
 
 ### 7.3.2 Dynamic Pagination Based on Actual Heights ✅ COMPLETE
 - [x] Created `useDynamicPaginatedReader.ts` hook that measures actual paragraph heights
+- [x] Prevent measurement thrash by only measuring once the page transition animation settles (fixes page-freeze loop)
 - [x] Pagination based on accumulated height instead of static estimate (avgParagraphHeight)
 - [x] Pages computed dynamically from measured heights with 16px gap between paragraphs
 - [x] Re-measures on font size change, container resize, and chapter change

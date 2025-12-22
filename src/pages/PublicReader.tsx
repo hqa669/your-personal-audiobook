@@ -188,7 +188,13 @@ export default function PublicReader() {
     
     // If audio has sync data, seek to this paragraph
     if (hasSyncData && hasAudio) {
-      const absoluteIndex = currentPageIndex * paragraphsPerPage + pageRelativeIndex;
+      // Calculate absolute index, accounting for cut-off paragraph
+      let absoluteIndex: number;
+      if (pageRelativeIndex >= paragraphsPerPage) {
+        absoluteIndex = (currentPageIndex + 1) * paragraphsPerPage + (pageRelativeIndex - paragraphsPerPage);
+      } else {
+        absoluteIndex = currentPageIndex * paragraphsPerPage + pageRelativeIndex;
+      }
       seekToParagraph(absoluteIndex);
     }
   };

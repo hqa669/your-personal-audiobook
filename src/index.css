@@ -308,7 +308,37 @@
 
   /* Page transition container */
   .page-container {
-    @apply flex flex-col justify-start min-h-[60vh];
+    @apply flex flex-col justify-start;
+    position: relative;
+  }
+
+  /* Scrollable paragraph when too long */
+  .paragraph-scrollable {
+    max-height: 50vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.3) transparent;
+  }
+
+  .paragraph-scrollable::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .paragraph-scrollable::-webkit-scrollbar-track {
+    @apply bg-transparent rounded-full;
+  }
+
+  .paragraph-scrollable::-webkit-scrollbar-thumb {
+    @apply bg-primary/30 rounded-full;
+  }
+
+  .paragraph-scrollable::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/50;
+  }
+
+  /* Cut-off last paragraph visual hint */
+  .reading-paragraph.last-cutoff {
+    /* Allow natural overflow cut at container edge */
   }
 
   /* Reader page navigation */

@@ -308,10 +308,7 @@ export default function PublicReader() {
     }
   };
 
-  // Handle paragraph click - Kindle-style tap-to-advance behavior
-  // - Clicking the "effective advance" paragraph (cut-off OR last) advances to next page
-  // - That paragraph becomes the first paragraph on the next page
-  // - All other paragraphs select and sync audio
+  // Handle paragraph click - select paragraph and sync audio
   const handleParagraphClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -320,33 +317,13 @@ export default function PublicReader() {
     if (import.meta.env.DEV) {
       console.log({
         pageRelativeIndex,
-        effectiveAdvanceIndex,
         pageParagraphsLength: pageParagraphs.length,
         pageStartIndex,
         currentPageIndex,
       });
       console.log('[Reader] Clicked paragraph:', pageRelativeIndex, '(absolute:', absoluteIndex, ')');
-      console.log('[Reader] Effective advance index:', effectiveAdvanceIndex);
     }
 
-    // Check if this is the "effective advance" paragraph
-    if (effectiveAdvanceIndex !== null && pageRelativeIndex === effectiveAdvanceIndex) {
-      if (import.meta.env.DEV) {
-        console.log('[Reader] Tap-to-advance: moving to paragraph', absoluteIndex);
-      }
-
-      // Advance page - this paragraph becomes first on next page
-      setPageDirection('next');
-      goToNextPage();
-
-      // Also seek audio if available
-      if (hasSyncData && hasAudio) {
-        seekToParagraph(absoluteIndex);
-      }
-      return;
-    }
-
-    // Non-advance paragraph: select it and sync audio
     selectParagraph(pageRelativeIndex);
 
     if (hasSyncData && hasAudio) {

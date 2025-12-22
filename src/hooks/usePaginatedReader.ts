@@ -24,17 +24,24 @@ export interface PaginatedReaderState {
 
 interface UsePaginatedReaderOptions {
   content: string;
-  paragraphsPerPage?: number;
   initialParagraphIndex?: number;
   onParagraphChange?: (paragraphIndex: number) => void;
+  containerHeight?: number;
+  paragraphHeight?: number;
 }
 
 export function usePaginatedReader({
   content,
-  paragraphsPerPage = 3,
   initialParagraphIndex = 0,
   onParagraphChange,
+  containerHeight = 500,
+  paragraphHeight = 150,
 }: UsePaginatedReaderOptions): PaginatedReaderState {
+  // Calculate dynamic paragraphs per page based on container height
+  const paragraphsPerPage = useMemo(() => {
+    const calculated = Math.max(1, Math.floor(containerHeight / paragraphHeight));
+    return calculated;
+  }, [containerHeight, paragraphHeight]);
   // Split content into paragraphs
   const paragraphs = useMemo(() => {
     return content
@@ -115,18 +122,14 @@ export function usePaginatedReader({
     const absoluteIndex = currentPageIndex * paragraphsPerPage + pageRelativeIndex;
     if (absoluteIndex >= 0 && absoluteIndex < paragraphs.length) {
       setCurrentParagraphIndex(absoluteIndex);
-      
-      // If selecting the last paragraph on the page, auto-navigate to next page
-      // and set that paragraph as the first (anchored at top)
-      if (pageRelativeIndex === pageParagraphs.length - 1 && currentPageIndex + 1 < pageCount) {
-        // Allow the selection animation to complete before navigating
-        setTimeout(() => {
-          const nextPageFirstParagraph = (currentPageIndex + 1) * paragraphsPerPage;
-          setCurrentParagraphIndex(nextPageFirstParagraph);
-        }, 300);
-      }
     }
-  }, [currentPageIndex, paragraphsPerPage, paragraphs.length, pageParagraphs.length, pageCount]);
+  }, [currentPageIndex, paragraphsPerPage, paragraphs.length]);
+
+  // Reset to first paragraph when content changes (new chapter)
+  useEffect(() => {
+    setCurrentParagraphIndex(0);
+    prevParagraphIndexRef.current = 0;
+  }, [content]);
 
   return {
     paragraphs,

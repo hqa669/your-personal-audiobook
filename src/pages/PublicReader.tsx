@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -53,6 +53,26 @@ export default function PublicReader() {
   const [pageDirection, setPageDirection] = useState<'next' | 'prev'>('next');
 
   const { removeFromLibrary, isInLibrary } = usePublicBooks();
+  
+  // Measure container height for dynamic pagination
+  const contentContainerRef = useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = useState(400);
+  const [avgParagraphHeight, setAvgParagraphHeight] = useState(150);
+
+  // Measure container on mount and resize
+  useEffect(() => {
+    const measureContainer = () => {
+      if (contentContainerRef.current) {
+        // Available height = viewport - header (56px) - footer (140px) - chapter title (80px) - page indicator (48px) - padding (80px)
+        const availableHeight = window.innerHeight - 56 - 140 - 80 - 48 - 80;
+        setContainerHeight(Math.max(200, availableHeight));
+      }
+    };
+    
+    measureContainer();
+    window.addEventListener('resize', measureContainer);
+    return () => window.removeEventListener('resize', measureContainer);
+  }, []);
 
   const {
     book,
@@ -77,6 +97,7 @@ export default function PublicReader() {
     currentParagraphOnPage,
     currentPageIndex,
     pageCount,
+    paragraphsPerPage,
     goToNextPage,
     goToPrevPage,
     goToParagraph,
@@ -85,8 +106,9 @@ export default function PublicReader() {
     hasPrevPage,
   } = usePaginatedReader({
     content: currentChapter?.content || '',
-    paragraphsPerPage: 3,
     initialParagraphIndex: 0,
+    containerHeight,
+    paragraphHeight: avgParagraphHeight,
   });
 
   const {
@@ -168,7 +190,7 @@ export default function PublicReader() {
     
     // If audio has sync data, seek to this paragraph
     if (hasSyncData && hasAudio) {
-      const absoluteIndex = currentPageIndex * 3 + pageRelativeIndex;
+      const absoluteIndex = currentPageIndex * paragraphsPerPage + pageRelativeIndex;
       seekToParagraph(absoluteIndex);
     }
   };
@@ -333,7 +355,7 @@ export default function PublicReader() {
                       )}
                       role="button"
                       tabIndex={0}
-                      aria-label={`Paragraph ${currentPageIndex * 3 + index + 1}`}
+                      aria-label={`Paragraph ${currentPageIndex * paragraphsPerPage + index + 1}`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
@@ -375,39 +397,6 @@ export default function PublicReader() {
                   />
                 );
               })}
-            </div>
-
-            {/* Chapter navigation at bottom */}
-            <div className="flex justify-between items-center mt-8 pt-6 border-t border-border/30">
-              <Button
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPageDirection('prev');
-                  prevChapter();
-                }}
-                disabled={!hasPrevChapter}
-                className="gap-2 text-muted-foreground hover:text-foreground"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Prev Chapter
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Ch. {chapterIndex + 1} of {totalChapters}
-              </span>
-              <Button
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPageDirection('next');
-                  nextChapter();
-                }}
-                disabled={!hasNextChapter}
-                className="gap-2 text-muted-foreground hover:text-foreground"
-              >
-                Next Chapter
-                <ChevronRight className="w-4 h-4" />
-              </Button>
             </div>
           </article>
         ) : (

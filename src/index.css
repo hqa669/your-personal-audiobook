@@ -336,9 +336,33 @@
     @apply bg-primary/50;
   }
 
-  /* Cut-off last paragraph visual hint */
-  .reading-paragraph.last-cutoff {
-    /* Allow natural overflow cut at container edge */
+  /* Advance paragraph visual hint (Kindle-style tap to continue) */
+  .reading-paragraph.advance-paragraph {
+    position: relative;
+  }
+
+  .reading-paragraph.advance-paragraph::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 24px;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      hsl(var(--primary) / 0.06)
+    );
+    pointer-events: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+
+  .dark .reading-paragraph.advance-paragraph::after {
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      hsl(var(--primary) / 0.1)
+    );
   }
 
   /* Reader page navigation */

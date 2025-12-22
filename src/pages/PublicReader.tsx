@@ -58,7 +58,8 @@ export default function PublicReader() {
   const contentContainerRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(400);
 
-  // Cut-off detection: first eligible paragraph index on the current page (page-relative)
+  // Cut-off detection: first paragraph visually cut off at the bottom (page-relative)
+  // NOTE: In Kindle-style reading, cut-off paragraphs are intentional and expected
   const [firstCutOffIndex, setFirstCutOffIndex] = useState<number | null>(null);
 
   // Gate layout reads until page transition animations settle (prevents measure/cutoff thrash)
@@ -98,6 +99,7 @@ export default function PublicReader() {
 
   // Dynamic pagination for the current chapter
   const {
+    paragraphs,
     pageParagraphs,
     currentParagraphIndex,
     currentParagraphOnPage,
@@ -117,6 +119,13 @@ export default function PublicReader() {
     containerHeight,
     fallbackParagraphHeight: 120,
   });
+
+  // Effective "advance" paragraph: either the cut-off paragraph OR the last paragraph on the page
+  // This is the paragraph that, when clicked, advances to the next page
+  const effectiveAdvanceIndex = useMemo(() => {
+    if (pageParagraphs.length === 0) return null;
+    return firstCutOffIndex ?? (pageParagraphs.length - 1);
+  }, [firstCutOffIndex, pageParagraphs.length]);
 
   // Current page's absolute start index
   const pageStartIndex = useMemo(() => {
@@ -299,31 +308,27 @@ export default function PublicReader() {
     }
   };
 
-  // Handle paragraph click - detect cut-off and advance if needed
-  // Only the FIRST paragraph that is >25% cut off is eligible to trigger page advance
+  // Handle paragraph click - Kindle-style tap-to-advance behavior
+  // - Clicking the "effective advance" paragraph (cut-off OR last) advances to next page
+  // - That paragraph becomes the first paragraph on the next page
+  // - All other paragraphs select and sync audio
   const handleParagraphClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
 
+    const absoluteIndex = pageStartIndex + pageRelativeIndex;
+
     if (import.meta.env.DEV) {
-      console.log('[CutOff] Clicked index:', pageRelativeIndex);
-      console.log('[CutOff] First eligible cut-off index:', firstCutOffIndex);
+      console.log('[Reader] Clicked paragraph:', pageRelativeIndex, '(absolute:', absoluteIndex, ')');
+      console.log('[Reader] Effective advance index:', effectiveAdvanceIndex);
     }
 
-    // If a cut-off paragraph exists on this page, ONLY it is allowed to advance
-    if (typeof firstCutOffIndex === 'number') {
-      if (pageRelativeIndex !== firstCutOffIndex) {
-        if (import.meta.env.DEV) {
-          console.log('[CutOff] Ignored click (not first eligible cut-off paragraph)');
-        }
-        return;
-      }
-
-      const absoluteIndex = pageStartIndex + pageRelativeIndex;
-
+    // Check if this is the "effective advance" paragraph
+    if (effectiveAdvanceIndex !== null && pageRelativeIndex === effectiveAdvanceIndex) {
       if (import.meta.env.DEV) {
-        console.log('[CutOff] Advancing to paragraph', absoluteIndex);
+        console.log('[Reader] Tap-to-advance: moving to paragraph', absoluteIndex);
       }
 
+      // Advance page - this paragraph becomes first on next page
       setPageDirection('next');
       goToParagraph(absoluteIndex);
 
@@ -334,13 +339,37 @@ export default function PublicReader() {
       return;
     }
 
-    // No eligible cut-off paragraph on this page → normal selection behavior
+    // Non-advance paragraph: select it and sync audio
     selectParagraph(pageRelativeIndex);
 
-    // If audio has sync data, seek to this paragraph
     if (hasSyncData && hasAudio) {
-      const absoluteIndex = pageStartIndex + pageRelativeIndex;
       seekToParagraph(absoluteIndex);
+    }
+  };
+
+  // Handle double-click - advance to next paragraph (useful for long paragraphs)
+  const handleParagraphDoubleClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const absoluteIndex = pageStartIndex + pageRelativeIndex;
+    const nextParagraphIndex = absoluteIndex + 1;
+
+    if (import.meta.env.DEV) {
+      console.log('[Reader] Double-click: advancing from paragraph', absoluteIndex, 'to', nextParagraphIndex);
+    }
+
+    // Check if there's a next paragraph
+    if (nextParagraphIndex < paragraphs.length) {
+      setPageDirection('next');
+      goToParagraph(nextParagraphIndex);
+
+      if (hasSyncData && hasAudio) {
+        seekToParagraph(nextParagraphIndex);
+      }
+    } else if (hasNextChapter) {
+      // At the end of chapter, go to next chapter
+      setPageDirection('next');
+      nextChapter();
     }
   };
 
@@ -485,7 +514,7 @@ export default function PublicReader() {
                 {pageParagraphs.map((paragraph, index) => {
                   const isCurrentParagraph = currentParagraphOnPage === index;
                   const isAudioSynced = hasSyncData && isPlaying;
-                  const isLastVisible = index === pageParagraphs.length - 1;
+                  const isAdvanceParagraph = effectiveAdvanceIndex === index;
                   
                   return (
                     <motion.div
@@ -502,16 +531,17 @@ export default function PublicReader() {
                         ease: [0.4, 0, 0.2, 1]
                       }}
                       onClick={(e) => handleParagraphClick(index, e)}
+                      onDoubleClick={(e) => handleParagraphDoubleClick(index, e)}
                       className={cn(
                         "reading-paragraph mb-4",
                         isDarkMode ? "text-slate-200" : "text-foreground/90",
                         isCurrentParagraph && "current",
                         isCurrentParagraph && isAudioSynced && "playing",
-                        isLastVisible && "last-cutoff"
+                        isAdvanceParagraph && "advance-paragraph"
                       )}
                       role="button"
                       tabIndex={0}
-                      aria-label={`Paragraph ${pageStartIndex + index + 1}`}
+                      aria-label={`Paragraph ${pageStartIndex + index + 1}${isAdvanceParagraph ? ' - tap to continue' : ''}`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();

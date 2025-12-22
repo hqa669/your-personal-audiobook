@@ -503,6 +503,15 @@ create policy "Users can upload covers"
 - [x] Fallback height (120px) used while heights are being measured
 - [x] Integrated in PublicReader.tsx replacing the old `usePaginatedReader` hook
 
+### 7.3.3 Kindle-Style Tap-to-Advance Reading ✅ COMPLETE
+- [x] Cut-off paragraphs are intentional and expected (not errors)
+- [x] `effectiveAdvanceIndex` = cut-off paragraph OR last paragraph on page
+- [x] Clicking effective advance paragraph advances page, makes it first on next page
+- [x] Non-advance paragraphs select and sync audio as normal
+- [x] Double-click on any paragraph advances to next paragraph (useful for long paragraphs)
+- [x] Subtle visual hint (gradient fade) on advance paragraph
+- [x] Preserved audio sync, animations, keyboard accessibility
+
 **Files created:**
 - `src/hooks/useAdmin.ts` - Admin CRUD operations
 - `src/pages/Admin.tsx` - Admin UI page

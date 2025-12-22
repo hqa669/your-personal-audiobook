@@ -109,6 +109,9 @@ export default function PublicReader() {
     paragraphHeight: avgParagraphHeight,
   });
 
+  // Current page's absolute start index (matches pagination model inside usePaginatedReader)
+  const pageStartIndex = currentPageIndex * Math.max(1, paragraphsPerPage - 1);
+
   const {
     isPlaying,
     isLoading: isAudioLoading,
@@ -185,16 +188,10 @@ export default function PublicReader() {
   const handleParagraphClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
     selectParagraph(pageRelativeIndex);
-    
+
     // If audio has sync data, seek to this paragraph
     if (hasSyncData && hasAudio) {
-      // Calculate absolute index, accounting for cut-off paragraph
-      let absoluteIndex: number;
-      if (pageRelativeIndex >= paragraphsPerPage) {
-        absoluteIndex = (currentPageIndex + 1) * paragraphsPerPage + (pageRelativeIndex - paragraphsPerPage);
-      } else {
-        absoluteIndex = currentPageIndex * paragraphsPerPage + pageRelativeIndex;
-      }
+      const absoluteIndex = pageStartIndex + pageRelativeIndex;
       seekToParagraph(absoluteIndex);
     }
   };
@@ -363,7 +360,7 @@ export default function PublicReader() {
                       )}
                       role="button"
                       tabIndex={0}
-                      aria-label={`Paragraph ${currentPageIndex * paragraphsPerPage + index + 1}`}
+                      aria-label={`Paragraph ${pageStartIndex + index + 1}`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();

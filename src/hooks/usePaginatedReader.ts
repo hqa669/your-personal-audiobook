@@ -37,22 +37,33 @@ export function usePaginatedReader({
   containerHeight = 500,
   paragraphHeight = 150,
 }: UsePaginatedReaderOptions): PaginatedReaderState {
-  // Calculate paragraphs per page:
-  // - completeParagraphsPerPage: paragraphs that fit fully (used for page navigation)
-  // - displayParagraphsPerPage: includes +1 cut-off paragraph for display
-  const completeParagraphsPerPage = useMemo(() => {
+  // Pagination strategy
+  // We want the page to flip *before* the current paragraph becomes the bottom-most paragraph.
+  // To achieve that, pages overlap by 1 full paragraph.
+  //
+  // - fullParagraphsPerPage: paragraphs that fully fit
+  // - pageStep: how many paragraphs we advance when turning a page (fullParagraphsPerPage - 1)
+  // - displayParagraphsPerPage: include +1 extra (cut-off) paragraph for visual continuity
+  const fullParagraphsPerPage = useMemo(() => {
     return Math.max(1, Math.floor(containerHeight / paragraphHeight));
   }, [containerHeight, paragraphHeight]);
-  
+
+  const pageStep = useMemo(() => {
+    // Overlap by 1 paragraph so that when you reach the "last" paragraph of a page,
+    // it becomes the first paragraph of the next page.
+    return Math.max(1, fullParagraphsPerPage - 1);
+  }, [fullParagraphsPerPage]);
+
   const displayParagraphsPerPage = useMemo(() => {
-    return completeParagraphsPerPage + 1; // Add one cut-off paragraph for display
-  }, [completeParagraphsPerPage]);
+    return fullParagraphsPerPage + 1; // Show one additional cut-off paragraph
+  }, [fullParagraphsPerPage]);
+
   // Split content into paragraphs
   const paragraphs = useMemo(() => {
     return content
       .split('\n\n')
-      .filter(p => p.trim())
-      .map(p => p.trim());
+      .filter((p) => p.trim())
+      .map((p) => p.trim());
   }, [content]);
 
   const [currentParagraphIndex, setCurrentParagraphIndex] = useState(initialParagraphIndex);
@@ -66,100 +77,110 @@ export function usePaginatedReader({
     }
   }, [currentParagraphIndex, onParagraphChange]);
 
-  // Calculate page info - use completeParagraphsPerPage for navigation logic
+  // Pages are defined by a sliding window:
+  // pageStartIndex = pageIndex * pageStep
   const pageCount = useMemo(() => {
-    return Math.ceil(paragraphs.length / completeParagraphsPerPage);
-  }, [paragraphs.length, completeParagraphsPerPage]);
+    if (paragraphs.length === 0) return 0;
+    return Math.floor((paragraphs.length - 1) / pageStep) + 1;
+  }, [paragraphs.length, pageStep]);
 
   const currentPageIndex = useMemo(() => {
-    return Math.floor(currentParagraphIndex / completeParagraphsPerPage);
-  }, [currentParagraphIndex, completeParagraphsPerPage]);
+    if (paragraphs.length === 0) return 0;
+    const idx = Math.floor(currentParagraphIndex / pageStep);
+    return Math.min(Math.max(idx, 0), Math.max(0, pageCount - 1));
+  }, [currentParagraphIndex, pageStep, pageCount, paragraphs.length]);
 
-  // Get paragraphs for the current page - use displayParagraphsPerPage to include cut-off
+  const pageStartIndex = useMemo(() => {
+    return currentPageIndex * pageStep;
+  }, [currentPageIndex, pageStep]);
+
+  // Get paragraphs for the current page (includes cut-off)
   const pageParagraphs = useMemo(() => {
-    const startIndex = currentPageIndex * completeParagraphsPerPage;
+    const startIndex = pageStartIndex;
     const endIndex = Math.min(startIndex + displayParagraphsPerPage, paragraphs.length);
     return paragraphs.slice(startIndex, endIndex);
-  }, [paragraphs, currentPageIndex, completeParagraphsPerPage, displayParagraphsPerPage]);
+  }, [paragraphs, pageStartIndex, displayParagraphsPerPage]);
 
   // Position of current paragraph on this page (0-based)
   const currentParagraphOnPage = useMemo(() => {
-    return currentParagraphIndex % completeParagraphsPerPage;
-  }, [currentParagraphIndex, completeParagraphsPerPage]);
+    return Math.max(0, currentParagraphIndex - pageStartIndex);
+  }, [currentParagraphIndex, pageStartIndex]);
 
-  // Check if current paragraph is the last complete one on this page
+  // For compatibility; in this pagination model, the "last paragraph on page" is rarely the current one
+  // because we intentionally flip earlier (via overlap). Keep it useful for last-page cases.
   const isLastParagraphOnPage = useMemo(() => {
-    return currentParagraphOnPage === completeParagraphsPerPage - 1;
-  }, [currentParagraphOnPage, completeParagraphsPerPage]);
+    const lastFullIndex = Math.min(fullParagraphsPerPage - 1, pageParagraphs.length - 1);
+    return currentParagraphOnPage === lastFullIndex;
+  }, [currentParagraphOnPage, fullParagraphsPerPage, pageParagraphs.length]);
 
   // Navigation functions
   const goToNextPage = useCallback(() => {
     const nextPageIndex = currentPageIndex + 1;
     if (nextPageIndex < pageCount) {
-      const newParagraphIndex = nextPageIndex * completeParagraphsPerPage;
-      setCurrentParagraphIndex(Math.min(newParagraphIndex, paragraphs.length - 1));
+      const newParagraphIndex = nextPageIndex * pageStep;
+      setCurrentParagraphIndex(Math.min(newParagraphIndex, Math.max(0, paragraphs.length - 1)));
     }
-  }, [currentPageIndex, pageCount, completeParagraphsPerPage, paragraphs.length]);
+  }, [currentPageIndex, pageCount, pageStep, paragraphs.length]);
 
   const goToPrevPage = useCallback(() => {
     const prevPageIndex = currentPageIndex - 1;
     if (prevPageIndex >= 0) {
-      const newParagraphIndex = prevPageIndex * completeParagraphsPerPage;
+      const newParagraphIndex = prevPageIndex * pageStep;
       setCurrentParagraphIndex(newParagraphIndex);
     }
-  }, [currentPageIndex, completeParagraphsPerPage]);
+  }, [currentPageIndex, pageStep]);
 
-  const goToPage = useCallback((pageIndex: number) => {
-    if (pageIndex >= 0 && pageIndex < pageCount) {
-      const newParagraphIndex = pageIndex * completeParagraphsPerPage;
-      setCurrentParagraphIndex(Math.min(newParagraphIndex, paragraphs.length - 1));
-    }
-  }, [pageCount, completeParagraphsPerPage, paragraphs.length]);
+  const goToPage = useCallback(
+    (pageIndex: number) => {
+      if (pageIndex >= 0 && pageIndex < pageCount) {
+        const newParagraphIndex = pageIndex * pageStep;
+        setCurrentParagraphIndex(Math.min(newParagraphIndex, Math.max(0, paragraphs.length - 1)));
+      }
+    },
+    [pageCount, pageStep, paragraphs.length]
+  );
 
-  const goToParagraph = useCallback((paragraphIndex: number) => {
-    if (paragraphIndex >= 0 && paragraphIndex < paragraphs.length) {
-      setCurrentParagraphIndex(paragraphIndex);
-    }
-  }, [paragraphs.length]);
+  const goToParagraph = useCallback(
+    (paragraphIndex: number) => {
+      if (paragraphIndex >= 0 && paragraphIndex < paragraphs.length) {
+        setCurrentParagraphIndex(paragraphIndex);
+      }
+    },
+    [paragraphs.length]
+  );
 
   // Select a paragraph by its position on the current page (including cut-off)
-  const selectParagraph = useCallback((pageRelativeIndex: number) => {
-    // For the cut-off paragraph (index >= completeParagraphsPerPage), 
-    // it belongs to the next page, so calculate accordingly
-    let absoluteIndex: number;
-    if (pageRelativeIndex >= completeParagraphsPerPage) {
-      // This is the cut-off paragraph - it's actually the first paragraph of the next page
-      absoluteIndex = (currentPageIndex + 1) * completeParagraphsPerPage + (pageRelativeIndex - completeParagraphsPerPage);
-    } else {
-      absoluteIndex = currentPageIndex * completeParagraphsPerPage + pageRelativeIndex;
-    }
-    
-    if (absoluteIndex >= 0 && absoluteIndex < paragraphs.length) {
-      setCurrentParagraphIndex(absoluteIndex);
-    }
-  }, [currentPageIndex, completeParagraphsPerPage, paragraphs.length]);
+  const selectParagraph = useCallback(
+    (pageRelativeIndex: number) => {
+      const absoluteIndex = pageStartIndex + pageRelativeIndex;
+      if (absoluteIndex >= 0 && absoluteIndex < paragraphs.length) {
+        setCurrentParagraphIndex(absoluteIndex);
+      }
+    },
+    [pageStartIndex, paragraphs.length]
+  );
 
-  // Reset to first paragraph when content changes (new chapter)
+  // Reset to initial paragraph when content changes (new chapter)
   useEffect(() => {
-    setCurrentParagraphIndex(0);
-    prevParagraphIndexRef.current = 0;
-  }, [content]);
+    setCurrentParagraphIndex(initialParagraphIndex);
+    prevParagraphIndexRef.current = initialParagraphIndex;
+  }, [content, initialParagraphIndex]);
 
   return {
     paragraphs,
     currentParagraphIndex,
     currentPageIndex,
     pageCount,
-    paragraphsPerPage: completeParagraphsPerPage,
+    paragraphsPerPage: fullParagraphsPerPage,
     pageParagraphs,
     currentParagraphOnPage,
-    
+
     goToNextPage,
     goToPrevPage,
     goToPage,
     goToParagraph,
     selectParagraph,
-    
+
     hasNextPage: currentPageIndex < pageCount - 1,
     hasPrevPage: currentPageIndex > 0,
     isLastParagraphOnPage,

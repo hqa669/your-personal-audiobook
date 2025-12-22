@@ -186,33 +186,54 @@ export default function PublicReader() {
   };
 
   // Handle paragraph click - detect cut-off and advance if needed
+  // Only the FIRST paragraph that is >25% cut off is eligible to trigger page advance
   const handleParagraphClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
     
-    const paragraphEl = paragraphRefs.current[pageRelativeIndex];
     const containerEl = contentContainerRef.current;
+    if (!containerEl) return;
     
-    if (paragraphEl && containerEl) {
-      const containerRect = containerEl.getBoundingClientRect();
-      const paragraphRect = paragraphEl.getBoundingClientRect();
+    const containerRect = containerEl.getBoundingClientRect();
+    
+    // Find the first eligible cut-off paragraph on this page
+    let firstEligibleIndex: number | null = null;
+    
+    for (let i = 0; i < pageParagraphs.length; i++) {
+      const el = paragraphRefs.current[i];
+      if (!el) continue;
       
-      // Check if this paragraph is cut off at the bottom
-      const isCutOff = 
-        paragraphRect.bottom > containerRect.bottom && 
-        paragraphRect.top < containerRect.bottom;
+      const elRect = el.getBoundingClientRect();
+      const cutOffPx = elRect.bottom - containerRect.bottom;
+      const cutOffRatio = elRect.height > 0 ? cutOffPx / elRect.height : 0;
+      const intersectsBottom = elRect.top < containerRect.bottom && elRect.bottom > containerRect.bottom;
       
-      if (isCutOff) {
-        // Advance to make this paragraph the first on the next page
-        const absoluteIndex = pageStartIndex + pageRelativeIndex;
-        setPageDirection('next');
-        goToParagraph(absoluteIndex);
-        
-        // Also seek audio if available
-        if (hasSyncData && hasAudio) {
-          seekToParagraph(absoluteIndex);
-        }
-        return;
+      // Dev-only logging
+      if (import.meta.env.DEV && intersectsBottom) {
+        console.log(`[CutOff] Paragraph ${i}: cutOffRatio=${cutOffRatio.toFixed(3)}, cutOffPx=${cutOffPx.toFixed(1)}, height=${elRect.height.toFixed(1)}`);
       }
+      
+      if (intersectsBottom && cutOffRatio > 0.25) {
+        firstEligibleIndex = i;
+        break; // First one found
+      }
+    }
+    
+    // Only advance if user clicked the first eligible cut-off paragraph
+    if (firstEligibleIndex !== null && pageRelativeIndex === firstEligibleIndex) {
+      const absoluteIndex = pageStartIndex + pageRelativeIndex;
+      
+      if (import.meta.env.DEV) {
+        console.log(`[CutOff] Advancing to paragraph ${absoluteIndex}`);
+      }
+      
+      setPageDirection('next');
+      goToParagraph(absoluteIndex);
+      
+      // Also seek audio if available
+      if (hasSyncData && hasAudio) {
+        seekToParagraph(absoluteIndex);
+      }
+      return;
     }
     
     // Normal selection behavior

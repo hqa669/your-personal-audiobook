@@ -37,11 +37,12 @@ export function usePaginatedReader({
   containerHeight = 500,
   paragraphHeight = 150,
 }: UsePaginatedReaderOptions): PaginatedReaderState {
-  // Calculate dynamic paragraphs per page based on container height
-  // Add 1 extra paragraph to show cut-off at bottom
+  // Calculate paragraphs per page:
+  // 1. floor(containerHeight / paragraphHeight) = complete paragraphs that fit fully
+  // 2. +1 = one additional paragraph shown cut-off at the bottom
   const paragraphsPerPage = useMemo(() => {
-    const calculated = Math.max(1, Math.floor(containerHeight / paragraphHeight)) + 1;
-    return calculated;
+    const completeParagraphs = Math.max(1, Math.floor(containerHeight / paragraphHeight));
+    return completeParagraphs + 1; // Add one cut-off paragraph
   }, [containerHeight, paragraphHeight]);
   // Split content into paragraphs
   const paragraphs = useMemo(() => {

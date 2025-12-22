@@ -507,11 +507,22 @@ create policy "Users can upload covers"
 - [x] Loading skeletons for book cards (`BookCardSkeleton.tsx`)
 - [x] Empty state illustrations (`EmptyState.tsx` with variants: library, search, discover, audio)
 - [x] Error boundary components (`ErrorBoundary.tsx`)
+- [x] **Calm Paginated Reader Experience** (PublicReader):
+  - [x] Paginated view instead of scroll (3 paragraphs per page)
+  - [x] Page navigation with ⏮ ⏭ buttons (page-by-page, not chapter)
+  - [x] Current paragraph highlight with soft glow styling
+  - [x] Interactive paragraph click to select/anchor
+  - [x] Auto-sync with audio playback paragraph
+  - [x] Gentle fade-slide page transitions (280ms ease-in-out)
+  - [x] Page indicator dots
+  - [x] Keyboard accessibility for paragraph focus
 - [ ] Toast notifications for all actions
 - [ ] Smooth modal transitions (spring animation)
 - [ ] Microcopy updates per design guidelines
 
 ### 8.2 Accessibility
+- [x] Keyboard navigation for reader paragraphs (Enter/Space to select)
+- [x] ARIA labels for page navigation buttons
 - [ ] Keyboard navigation for all interactive elements
 - [ ] ARIA labels for buttons, modals, controls
 - [ ] Focus management in modals

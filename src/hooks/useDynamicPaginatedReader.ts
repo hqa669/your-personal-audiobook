@@ -57,6 +57,9 @@ export function useDynamicPaginatedReader({
 
   // Measured heights (null = not yet measured, use fallback)
   const [measuredHeights, setMeasuredHeights] = useState<(number | null)[]>([]);
+  
+  // Previous heights ref to prevent infinite loops
+  const previousHeightsRef = useRef<(number | null)[]>([]);
 
   // Current paragraph index (absolute)
   const [currentParagraphIndex, setCurrentParagraphIndex] = useState(initialParagraphIndex);
@@ -136,17 +139,16 @@ export function useDynamicPaginatedReader({
     }
   }, [currentParagraphIndex, onParagraphChange]);
 
-  // Measure paragraph heights from DOM
+  // Measure paragraph heights from DOM - with loop prevention
   const measureParagraphs = useCallback(() => {
     const refs = paragraphRefs.current;
     if (refs.length === 0) return;
 
-    const newHeights: (number | null)[] = [];
-    
     // We need to measure ALL paragraphs, but only refs for current page exist
     // So we'll build heights array: measured for current page, null for others
     const page = pages[currentPageIndex];
     
+    const newHeights: (number | null)[] = [];
     for (let i = 0; i < paragraphs.length; i++) {
       if (page && i >= page.startIndex && i < page.endIndex) {
         const refIndex = i - page.startIndex;
@@ -162,6 +164,24 @@ export function useDynamicPaginatedReader({
       }
     }
 
+    // Check if heights actually changed (with 2px tolerance)
+    const hasChanged = 
+      newHeights.length !== previousHeightsRef.current.length ||
+      newHeights.some((h, i) => {
+        const prev = previousHeightsRef.current[i];
+        if (h === null && prev === null) return false;
+        if (h === null || prev === null) return true;
+        return Math.abs(h - prev) > 2;
+      });
+
+    if (!hasChanged) {
+      if (import.meta.env.DEV) {
+        console.log(`[DynamicPagination] Heights unchanged, skipping update`);
+      }
+      return;
+    }
+
+    previousHeightsRef.current = newHeights;
     setMeasuredHeights(newHeights);
 
     if (import.meta.env.DEV) {

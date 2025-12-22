@@ -141,6 +141,7 @@ export default function PublicReader() {
     setPageLayoutStable(false);
     setFirstCutOffIndex(null);
     measurementsDoneRef.current = false;
+    setSuppressAutoSelection(true);
   }, [currentPageIndex, chapterIndex, fontSize, containerHeight]);
 
   // Measure paragraphs after they render (only once page layout is stable)

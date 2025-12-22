@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -37,7 +37,7 @@ import {
 import { usePublicBookReader } from '@/hooks/usePublicBookReader';
 import { usePublicBookAudio } from '@/hooks/usePublicBookAudio';
 import { usePublicBooks } from '@/hooks/usePublicBooks';
-import { usePaginatedReader } from '@/hooks/usePaginatedReader';
+import { useDynamicPaginatedReader } from '@/hooks/useDynamicPaginatedReader';
 import { ChapterListSheet } from '@/components/ChapterListSheet';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -56,9 +56,7 @@ export default function PublicReader() {
   
   // Measure container height for dynamic pagination
   const contentContainerRef = useRef<HTMLDivElement>(null);
-  const paragraphRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [containerHeight, setContainerHeight] = useState(400);
-  const [avgParagraphHeight, setAvgParagraphHeight] = useState(150);
 
   // Cut-off detection: first eligible paragraph index on the current page (page-relative)
   const [firstCutOffIndex, setFirstCutOffIndex] = useState<number | null>(null);
@@ -92,29 +90,45 @@ export default function PublicReader() {
     currentChapterAudio,
   } = usePublicBookReader(id);
 
-  // Pagination for the current chapter
+  // Dynamic pagination for the current chapter
   const {
     pageParagraphs,
     currentParagraphIndex,
     currentParagraphOnPage,
     currentPageIndex,
     pageCount,
-    paragraphsPerPage,
     goToNextPage,
     goToPrevPage,
     goToParagraph,
     selectParagraph,
     hasNextPage,
     hasPrevPage,
-  } = usePaginatedReader({
+    measureParagraphs,
+    paragraphRefs,
+  } = useDynamicPaginatedReader({
     content: currentChapter?.content || '',
     initialParagraphIndex: 0,
     containerHeight,
-    paragraphHeight: avgParagraphHeight,
+    fallbackParagraphHeight: 120,
   });
 
-  // Current page's absolute start index (matches pagination model inside usePaginatedReader)
-  const pageStartIndex = currentPageIndex * Math.max(1, paragraphsPerPage - 1);
+  // Current page's absolute start index
+  const pageStartIndex = useMemo(() => {
+    // Find the start index from the current page
+    if (pageParagraphs.length === 0) return 0;
+    return currentParagraphIndex - currentParagraphOnPage;
+  }, [currentParagraphIndex, currentParagraphOnPage, pageParagraphs.length]);
+
+  // Measure paragraphs after they render
+  useLayoutEffect(() => {
+    // Delay measurement to ensure DOM is ready after animation
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        measureParagraphs();
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [currentPageIndex, fontSize, containerHeight, measureParagraphs]);
 
   // Cut-off analysis (runs on render/layout changes)
   useLayoutEffect(() => {

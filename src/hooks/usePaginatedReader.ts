@@ -122,9 +122,18 @@ export function usePaginatedReader({
     }
   }, [paragraphs.length]);
 
-  // Select a paragraph by its position on the current page
+  // Select a paragraph by its position on the current page (including cut-off)
   const selectParagraph = useCallback((pageRelativeIndex: number) => {
-    const absoluteIndex = currentPageIndex * completeParagraphsPerPage + pageRelativeIndex;
+    // For the cut-off paragraph (index >= completeParagraphsPerPage), 
+    // it belongs to the next page, so calculate accordingly
+    let absoluteIndex: number;
+    if (pageRelativeIndex >= completeParagraphsPerPage) {
+      // This is the cut-off paragraph - it's actually the first paragraph of the next page
+      absoluteIndex = (currentPageIndex + 1) * completeParagraphsPerPage + (pageRelativeIndex - completeParagraphsPerPage);
+    } else {
+      absoluteIndex = currentPageIndex * completeParagraphsPerPage + pageRelativeIndex;
+    }
+    
     if (absoluteIndex >= 0 && absoluteIndex < paragraphs.length) {
       setCurrentParagraphIndex(absoluteIndex);
     }

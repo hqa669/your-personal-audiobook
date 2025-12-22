@@ -62,11 +62,9 @@ export default function PublicReader() {
   // Measure container on mount and resize
   useEffect(() => {
     const measureContainer = () => {
-      if (contentContainerRef.current) {
-        // Available height = viewport - header (56px) - footer (140px) - chapter title (80px) - page indicator (48px) - padding (80px)
-        const availableHeight = window.innerHeight - 56 - 140 - 80 - 48 - 80;
-        setContainerHeight(Math.max(200, availableHeight));
-      }
+      // Available height = viewport - header (64px) - footer controls (100px) - chapter title (60px) - padding (24px)
+      const availableHeight = window.innerHeight - 64 - 100 - 60 - 24;
+      setContainerHeight(Math.max(200, availableHeight));
     };
     
     measureContainer();

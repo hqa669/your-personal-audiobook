@@ -494,6 +494,14 @@ create policy "Users can upload covers"
 - [x] Confirm only the first >25% cut-off paragraph is clickable; others ignore clicks
 - [x] Verify behavior during paragraph entrance animations and after resizing
 
+### 7.3.2 Dynamic Pagination Based on Actual Heights ✅ COMPLETE
+- [x] Created `useDynamicPaginatedReader.ts` hook that measures actual paragraph heights
+- [x] Pagination based on accumulated height instead of static estimate (avgParagraphHeight)
+- [x] Pages computed dynamically from measured heights with 16px gap between paragraphs
+- [x] Re-measures on font size change, container resize, and chapter change
+- [x] Fallback height (120px) used while heights are being measured
+- [x] Integrated in PublicReader.tsx replacing the old `usePaginatedReader` hook
+
 **Files created:**
 - `src/hooks/useAdmin.ts` - Admin CRUD operations
 - `src/pages/Admin.tsx` - Admin UI page

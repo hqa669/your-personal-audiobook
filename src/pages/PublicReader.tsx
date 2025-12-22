@@ -52,6 +52,7 @@ export default function PublicReader() {
   const [isRemoving, setIsRemoving] = useState(false);
   const [pageDirection, setPageDirection] = useState<'next' | 'prev'>('next');
   const [suppressAutoSelection, setSuppressAutoSelection] = useState(false);
+  const [autoPlayNextChapter, setAutoPlayNextChapter] = useState(false);
 
   const { removeFromLibrary, isInLibrary } = usePublicBooks();
   
@@ -295,7 +296,10 @@ export default function PublicReader() {
     chapterIndex,
     onChapterEnd: useCallback(() => {
       if (hasNextChapter) {
+        setAutoPlayNextChapter(true);
         nextChapter();
+      } else {
+        setAutoPlayNextChapter(false);
       }
     }, [hasNextChapter, nextChapter]),
   });
@@ -306,6 +310,14 @@ export default function PublicReader() {
       goToParagraph(audioParagraphIndex);
     }
   }, [audioParagraphIndex, hasSyncData, isPlaying, goToParagraph]);
+
+  // Auto-play next chapter after audio ends
+  useEffect(() => {
+    if (!autoPlayNextChapter) return;
+    if (!hasAudio || isAudioLoading) return;
+    togglePlay();
+    setAutoPlayNextChapter(false);
+  }, [autoPlayNextChapter, hasAudio, isAudioLoading, togglePlay, chapterIndex]);
 
   const speeds = [0.75, 1, 1.25, 1.5, 2];
 

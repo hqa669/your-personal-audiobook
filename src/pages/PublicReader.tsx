@@ -493,7 +493,10 @@ export default function PublicReader() {
                 onAnimationComplete={() => setPageLayoutStable(true)}
                 ref={contentContainerRef}
                 className="page-container"
-                style={{ height: containerHeight, overflow: 'hidden' }}
+                style={{
+                  height: pageParagraphs.length <= 1 ? 'auto' : containerHeight,
+                  overflow: 'hidden',
+                }}
               >
                 {pageParagraphs.map((paragraph, index) => {
                   const isCurrentParagraph = currentParagraphOnPage === index;

@@ -487,6 +487,7 @@ create policy "Users can upload covers"
 - [x] Play button instead of "Generate Voice" button (audio is pre-generated)
 - [x] Created `usePublicBookReader.ts` hook for public book data
 - [x] Created `usePublicBookAudio.ts` hook for audio playback with sync highlighting
+- [x] Fix auto page flip on last/cut-off paragraph in Public Reader
 
 **Files created:**
 - `src/hooks/useAdmin.ts` - Admin CRUD operations

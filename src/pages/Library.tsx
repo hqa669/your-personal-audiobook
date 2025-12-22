@@ -7,6 +7,7 @@ import { BookCard, AddBookCard } from '@/components/BookCard';
 import { BookCardSkeleton } from '@/components/BookCardSkeleton';
 import { UploadBookModal } from '@/components/UploadBookModal';
 import { DeleteBookDialog } from '@/components/DeleteBookDialog';
+import { BookDetailModal } from '@/components/BookDetailModal';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,7 @@ export default function Library() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [userPublicBooks, setUserPublicBooks] = useState<PublicBook[]>([]);
   const [isLoadingPublicBooks, setIsLoadingPublicBooks] = useState(true);
+  const [selectedPublicBook, setSelectedPublicBook] = useState<PublicBook | null>(null);
   
   const { books: userBooks, isLoading: isLoadingUserBooks, isUploading, uploadProgress, uploadBook, deleteBook } = useBooks();
   const { books: allPublicBooks, isLoading: isLoadingAllPublicBooks, addToLibrary, isInLibrary } = usePublicBooks();
@@ -169,6 +171,10 @@ export default function Library() {
     const shuffled = [...allPublicBooks].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 5);
   }, [allPublicBooks]);
+
+  const handleAddToLibrary = async (book: PublicBook) => {
+    await addToLibrary(book.id);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -304,7 +310,7 @@ export default function Library() {
                         updated_at: book.created_at,
                       }}
                       showStatus={false}
-                      onClick={() => navigate(`/reader/public/${book.id}`)}
+                      onClick={() => setSelectedPublicBook(book)}
                     />
                     {isInLibrary(book.id) && (
                       <div className="absolute top-2 left-2 bg-primary/90 text-primary-foreground text-xs px-2 py-0.5 rounded-full">
@@ -334,6 +340,15 @@ export default function Library() {
         onConfirm={handleConfirmDelete}
         bookTitle={bookToDelete?.title || ''}
         isDeleting={isDeleting}
+      />
+
+      {/* Book Detail Modal for Public Books */}
+      <BookDetailModal
+        book={selectedPublicBook}
+        isOpen={!!selectedPublicBook}
+        onClose={() => setSelectedPublicBook(null)}
+        onAddToLibrary={handleAddToLibrary}
+        isInLibrary={selectedPublicBook ? isInLibrary(selectedPublicBook.id) : false}
       />
     </div>
   );

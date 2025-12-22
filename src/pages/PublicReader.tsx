@@ -1,21 +1,20 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, 
   Play, 
   Pause, 
-  SkipBack, 
-  SkipForward, 
+  ChevronLeft,
+  ChevronRight,
   Sun, 
   Moon, 
   Type,
   Volume2,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
   MoreVertical,
-  BookMinus
+  BookMinus,
+  List
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -38,6 +37,7 @@ import {
 import { usePublicBookReader } from '@/hooks/usePublicBookReader';
 import { usePublicBookAudio } from '@/hooks/usePublicBookAudio';
 import { usePublicBooks } from '@/hooks/usePublicBooks';
+import { usePaginatedReader } from '@/hooks/usePaginatedReader';
 import { ChapterListSheet } from '@/components/ChapterListSheet';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -50,6 +50,7 @@ export default function PublicReader() {
   const [showControls, setShowControls] = useState(true);
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [pageDirection, setPageDirection] = useState<'next' | 'prev'>('next');
 
   const { removeFromLibrary, isInLibrary } = usePublicBooks();
 
@@ -64,10 +65,29 @@ export default function PublicReader() {
     goToChapter,
     nextChapter,
     prevChapter,
-    hasNext,
-    hasPrev,
+    hasNext: hasNextChapter,
+    hasPrev: hasPrevChapter,
     currentChapterAudio,
   } = usePublicBookReader(id);
+
+  // Pagination for the current chapter
+  const {
+    pageParagraphs,
+    currentParagraphIndex,
+    currentParagraphOnPage,
+    currentPageIndex,
+    pageCount,
+    goToNextPage,
+    goToPrevPage,
+    goToParagraph,
+    selectParagraph,
+    hasNextPage,
+    hasPrevPage,
+  } = usePaginatedReader({
+    content: currentChapter?.content || '',
+    paragraphsPerPage: 3,
+    initialParagraphIndex: 0,
+  });
 
   const {
     isPlaying,
@@ -75,29 +95,32 @@ export default function PublicReader() {
     currentTime,
     duration,
     playbackRate,
-    currentParagraphIndex,
+    currentParagraphIndex: audioParagraphIndex,
     hasAudio,
     hasSyncData,
     togglePlay,
     seekTo,
+    seekToParagraph,
     changePlaybackRate,
   } = usePublicBookAudio({
     audioUrl: currentChapterAudio?.audio_url || null,
     syncUrl: currentChapterAudio?.sync_url || null,
     chapterIndex,
     onChapterEnd: useCallback(() => {
-      if (hasNext) {
+      if (hasNextChapter) {
         nextChapter();
       }
-    }, [hasNext, nextChapter]),
+    }, [hasNextChapter, nextChapter]),
   });
 
-  const speeds = [0.75, 1, 1.25, 1.5, 2];
+  // Sync audio paragraph with paginated view
+  useEffect(() => {
+    if (hasSyncData && isPlaying && typeof audioParagraphIndex === 'number') {
+      goToParagraph(audioParagraphIndex);
+    }
+  }, [audioParagraphIndex, hasSyncData, isPlaying, goToParagraph]);
 
-  // Calculate reading progress percentage
-  const progressPercent = totalChapters > 0 
-    ? Math.round((chapterIndex / (totalChapters - 1)) * 100) 
-    : 0;
+  const speeds = [0.75, 1, 1.25, 1.5, 2];
 
   // Calculate audio progress percentage
   const audioProgress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -115,6 +138,55 @@ export default function PublicReader() {
       navigate('/library');
     }
     setShowRemoveDialog(false);
+  };
+
+  // Handle page navigation with direction tracking
+  const handleNextPage = () => {
+    if (hasNextPage) {
+      setPageDirection('next');
+      goToNextPage();
+    } else if (hasNextChapter) {
+      setPageDirection('next');
+      nextChapter();
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (hasPrevPage) {
+      setPageDirection('prev');
+      goToPrevPage();
+    } else if (hasPrevChapter) {
+      setPageDirection('prev');
+      prevChapter();
+    }
+  };
+
+  // Handle paragraph click
+  const handleParagraphClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    selectParagraph(pageRelativeIndex);
+    
+    // If audio has sync data, seek to this paragraph
+    if (hasSyncData && hasAudio) {
+      const absoluteIndex = currentPageIndex * 3 + pageRelativeIndex;
+      seekToParagraph(absoluteIndex);
+    }
+  };
+
+  // Page transition variants
+  const pageVariants = {
+    enter: (direction: 'next' | 'prev') => ({
+      x: direction === 'next' ? 40 : -40,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (direction: 'next' | 'prev') => ({
+      x: direction === 'next' ? -40 : 40,
+      opacity: 0,
+    }),
   };
 
   if (isLoading) {
@@ -144,7 +216,7 @@ export default function PublicReader() {
   return (
     <div className={cn(
       "min-h-screen transition-colors duration-300",
-      isDarkMode ? "bg-slate-900 text-slate-100" : "bg-background text-foreground"
+      isDarkMode ? "dark bg-slate-900 text-slate-100" : "bg-background text-foreground"
     )}>
       {/* Header */}
       <AnimatePresence>
@@ -153,6 +225,7 @@ export default function PublicReader() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
             className={cn(
               "fixed top-0 left-0 right-0 z-40 backdrop-blur-md border-b",
               isDarkMode ? "bg-slate-900/80 border-slate-800" : "bg-background/80 border-border"
@@ -200,15 +273,15 @@ export default function PublicReader() {
         )}
       </AnimatePresence>
 
-      {/* Main content */}
+      {/* Main paginated content */}
       <main 
-        className="container max-w-2xl mx-auto px-6 py-20 cursor-pointer min-h-screen"
+        className="container max-w-2xl mx-auto px-6 pt-20 pb-40 cursor-pointer min-h-screen"
         onClick={() => setShowControls(!showControls)}
       >
         {currentChapter ? (
           <article 
-            className="prose prose-lg max-w-none leading-relaxed"
-            style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
+            className="prose prose-lg max-w-none"
+            style={{ fontSize: `${fontSize}px`, lineHeight: 1.7 }}
           >
             {/* Chapter title */}
             <motion.h2
@@ -222,62 +295,117 @@ export default function PublicReader() {
               {currentChapter.title}
             </motion.h2>
             
-            {/* Chapter content */}
-            {currentChapter.content.split('\n\n').filter(p => p.trim()).map((paragraph, index) => {
-              const isCurrentParagraph = hasSyncData && isPlaying && currentParagraphIndex === index;
-              return (
-                <motion.p
-                  key={index}
-                  initial={{ opacity: 0.3 }}
-                  animate={{ 
-                    opacity: 1,
-                    backgroundColor: isCurrentParagraph 
-                      ? (isDarkMode ? 'rgba(162, 123, 92, 0.15)' : 'rgba(162, 123, 92, 0.1)')
-                      : 'transparent'
-                  }}
-                  transition={{ 
-                    delay: Math.min(index * 0.02, 0.5), 
-                    duration: 0.3,
-                    backgroundColor: { duration: 0.3 }
-                  }}
-                  className={cn(
-                    "mb-6 px-2 -mx-2 py-1 rounded-lg transition-colors",
-                    isDarkMode ? "text-slate-200" : "text-foreground/90",
-                    isCurrentParagraph && "ring-1 ring-primary/30"
-                  )}
-                >
-                  {paragraph}
-                </motion.p>
-              );
-            })}
+            {/* Paginated paragraphs */}
+            <AnimatePresence mode="wait" custom={pageDirection}>
+              <motion.div
+                key={`page-${currentPageIndex}`}
+                custom={pageDirection}
+                variants={pageVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
+                className="page-container"
+              >
+                {pageParagraphs.map((paragraph, index) => {
+                  const isCurrentParagraph = currentParagraphOnPage === index;
+                  const isAudioSynced = hasSyncData && isPlaying;
+                  
+                  return (
+                    <motion.p
+                      key={`${currentPageIndex}-${index}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ 
+                        opacity: 1,
+                        y: 0,
+                      }}
+                      transition={{ 
+                        delay: index * 0.08,
+                        duration: 0.3,
+                        ease: [0.4, 0, 0.2, 1]
+                      }}
+                      onClick={(e) => handleParagraphClick(index, e)}
+                      className={cn(
+                        "reading-paragraph mb-4",
+                        isDarkMode ? "text-slate-200" : "text-foreground/90",
+                        isCurrentParagraph && "current",
+                        isCurrentParagraph && isAudioSynced && "playing"
+                      )}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Paragraph ${currentPageIndex * 3 + index + 1}`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleParagraphClick(index, e as any);
+                        }
+                      }}
+                    >
+                      {paragraph}
+                    </motion.p>
+                  );
+                })}
+              </motion.div>
+            </AnimatePresence>
             
+            {/* Page indicator */}
+            <div className="flex justify-center items-center gap-2 mt-8">
+              {Array.from({ length: Math.min(pageCount, 7) }).map((_, i) => {
+                let dotIndex = i;
+                if (pageCount > 7) {
+                  // Show first 3, current area, last 3
+                  if (currentPageIndex < 3) {
+                    dotIndex = i;
+                  } else if (currentPageIndex > pageCount - 4) {
+                    dotIndex = pageCount - 7 + i;
+                  } else {
+                    dotIndex = currentPageIndex - 3 + i;
+                  }
+                }
+                return (
+                  <motion.div
+                    key={dotIndex}
+                    className={cn(
+                      "rounded-full transition-all duration-300",
+                      dotIndex === currentPageIndex 
+                        ? "w-6 h-2 bg-primary" 
+                        : "w-2 h-2 bg-muted-foreground/30"
+                    )}
+                    layout
+                  />
+                );
+              })}
+            </div>
+
             {/* Chapter navigation at bottom */}
-            <div className="flex justify-between items-center mt-12 pt-8 border-t border-border/50">
+            <div className="flex justify-between items-center mt-8 pt-6 border-t border-border/30">
               <Button
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation();
+                  setPageDirection('prev');
                   prevChapter();
                 }}
-                disabled={!hasPrev}
-                className="gap-2"
+                disabled={!hasPrevChapter}
+                className="gap-2 text-muted-foreground hover:text-foreground"
               >
                 <ChevronLeft className="w-4 h-4" />
-                Previous
+                Prev Chapter
               </Button>
               <span className="text-sm text-muted-foreground">
-                {chapterIndex + 1} of {totalChapters}
+                Ch. {chapterIndex + 1} of {totalChapters}
               </span>
               <Button
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation();
+                  setPageDirection('next');
                   nextChapter();
                 }}
-                disabled={!hasNext}
-                className="gap-2"
+                disabled={!hasNextChapter}
+                className="gap-2 text-muted-foreground hover:text-foreground"
               >
-                Next
+                Next Chapter
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
@@ -296,6 +424,7 @@ export default function PublicReader() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
             className={cn(
               "fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t pb-safe",
               isDarkMode ? "bg-slate-900/90 border-slate-800" : "bg-background/90 border-border"
@@ -305,7 +434,7 @@ export default function PublicReader() {
               {/* Audio progress slider (if audio exists) */}
               {hasAudio && (
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground w-12">
+                  <span className="text-xs text-muted-foreground w-12 text-right">
                     {formatTime(currentTime)}
                   </span>
                   <Slider
@@ -324,10 +453,9 @@ export default function PublicReader() {
                 </div>
               )}
 
-
-              {/* Audio controls */}
+              {/* Page & Audio controls */}
               <div className="flex items-center justify-between">
-                {/* Left - Chapter & Display */}
+                {/* Left - Chapter list & Font */}
                 <div className="flex items-center gap-2">
                   {parsedBook && (
                     <ChapterListSheet
@@ -353,27 +481,27 @@ export default function PublicReader() {
                   </Button>
                 </div>
 
-                {/* Center - Play controls */}
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="w-10 h-10"
+                {/* Center - Page navigation & Play */}
+                <div className="flex items-center gap-3">
+                  {/* Previous Page */}
+                  <button 
+                    className="page-nav-btn"
                     onClick={(e) => {
                       e.stopPropagation();
-                      prevChapter();
+                      handlePrevPage();
                     }}
-                    disabled={!hasPrev}
+                    disabled={!hasPrevPage && !hasPrevChapter}
+                    aria-label="Previous page"
                   >
-                    <SkipBack className="w-4 h-4" />
-                  </Button>
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
                   
-                  {/* Play button - always shown for public books with audio */}
+                  {/* Play/Pause button */}
                   {hasAudio ? (
                     <Button
                       variant="warm"
                       size="icon"
-                      className="w-14 h-14 rounded-full"
+                      className="w-14 h-14 rounded-full shadow-lg"
                       onClick={(e) => {
                         e.stopPropagation();
                         togglePlay();
@@ -401,21 +529,21 @@ export default function PublicReader() {
                     </Button>
                   )}
                   
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="w-10 h-10"
+                  {/* Next Page */}
+                  <button 
+                    className="page-nav-btn"
                     onClick={(e) => {
                       e.stopPropagation();
-                      nextChapter();
+                      handleNextPage();
                     }}
-                    disabled={!hasNext}
+                    disabled={!hasNextPage && !hasNextChapter}
+                    aria-label="Next page"
                   >
-                    <SkipForward className="w-4 h-4" />
-                  </Button>
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
                 </div>
 
-                {/* Right - Speed & Voice */}
+                {/* Right - Speed & Volume */}
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"

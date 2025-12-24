@@ -11,6 +11,7 @@ interface UsePublicBookAudioProps {
   syncUrl: string | null;
   chapterIndex: number;
   onChapterEnd?: () => void;
+  initialTime?: number;
 }
 
 export function usePublicBookAudio({
@@ -18,6 +19,7 @@ export function usePublicBookAudio({
   syncUrl,
   chapterIndex,
   onChapterEnd,
+  initialTime,
 }: UsePublicBookAudioProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +31,7 @@ export function usePublicBookAudio({
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeChapterRef = useRef(chapterIndex);
+  const initialTimeRef = useRef<number | null>(null);
 
   // Handle chapter changes - reset audio
   useEffect(() => {
@@ -38,6 +41,7 @@ export function usePublicBookAudio({
       setCurrentTime(0);
       setCurrentParagraphIndex(0);
       setSyncData([]);
+      initialTimeRef.current = null;
       
       if (audioRef.current) {
         audioRef.current.pause();
@@ -46,6 +50,14 @@ export function usePublicBookAudio({
       }
     }
   }, [chapterIndex]);
+
+  // Track initial time before audio element is created
+  useEffect(() => {
+    if (audioRef.current) return;
+    if (typeof initialTime === 'number' && initialTime >= 0) {
+      initialTimeRef.current = initialTime;
+    }
+  }, [initialTime]);
 
   // Load sync data when syncUrl changes
   useEffect(() => {
@@ -124,6 +136,12 @@ export function usePublicBookAudio({
         
         audio.addEventListener('loadedmetadata', () => {
           setDuration(audio.duration);
+          if (initialTimeRef.current !== null) {
+            const targetTime = Math.min(initialTimeRef.current, audio.duration || initialTimeRef.current);
+            audio.currentTime = targetTime;
+            setCurrentTime(targetTime);
+            initialTimeRef.current = null;
+          }
         });
         
         audio.addEventListener('canplaythrough', () => {

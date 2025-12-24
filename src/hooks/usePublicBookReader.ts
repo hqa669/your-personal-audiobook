@@ -236,6 +236,7 @@ export function usePublicBookReader(publicBookId: string | undefined) {
     book,
     parsedBook,
     currentChapter,
+    progress,
     chapterIndex: chapterIndex ?? 0,
     totalChapters: parsedBook?.chapters.length || 0,
     isLoading,

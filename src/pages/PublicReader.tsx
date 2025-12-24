@@ -73,6 +73,9 @@ export default function PublicReader() {
   const measurementsDoneRef = useRef(false);
   const [paragraphOverflow, setParagraphOverflow] = useState<boolean[]>([]);
   const pendingPageSeekRef = useRef(false);
+  const lastSavedRef = useRef({ time: 0, at: 0 });
+  const restoredChapterRef = useRef<number | null>(null);
+  const progressRestoredRef = useRef(false);
 
   // Measure container on mount and resize
   useEffect(() => {
@@ -101,6 +104,8 @@ export default function PublicReader() {
     hasNext: hasNextChapter,
     hasPrev: hasPrevChapter,
     currentChapterAudio,
+    progress,
+    saveProgress,
   } = usePublicBookReader(id);
 
   // Dynamic pagination for the current chapter
@@ -147,6 +152,11 @@ export default function PublicReader() {
     measurementsDoneRef.current = false;
     setSuppressAutoSelection(true);
   }, [currentPageIndex, chapterIndex, fontSize, containerHeight]);
+
+  useEffect(() => {
+    progressRestoredRef.current = false;
+    restoredChapterRef.current = null;
+  }, [chapterIndex]);
 
   // Measure paragraphs after they render (only once page layout is stable)
   useLayoutEffect(() => {
@@ -298,6 +308,7 @@ export default function PublicReader() {
     audioUrl: currentChapterAudio?.audio_url || null,
     syncUrl: currentChapterAudio?.sync_url || null,
     chapterIndex,
+    initialTime: progress.positionSeconds,
     onChapterEnd: useCallback(() => {
       if (hasNextChapter) {
         setAutoPlayNextChapter(true);
@@ -314,6 +325,37 @@ export default function PublicReader() {
       goToParagraph(audioParagraphIndex);
     }
   }, [audioParagraphIndex, hasSyncData, isPlaying, goToParagraph]);
+
+  // Restore paragraph based on saved audio position
+  useEffect(() => {
+    if (!hasSyncData || !currentChapter) return;
+    if (typeof progress.positionSeconds !== 'number') return;
+    if (restoredChapterRef.current === chapterIndex) return;
+
+    const targetParagraph = getParagraphIndexForTime(progress.positionSeconds);
+    if (typeof targetParagraph !== 'number') return;
+
+    setSuppressAutoSelection(false);
+    setIsTimeScrubSelection(true);
+    setIsPageNavSelection(false);
+    goToParagraph(targetParagraph);
+
+    restoredChapterRef.current = chapterIndex;
+    progressRestoredRef.current = true;
+  }, [
+    chapterIndex,
+    currentChapter,
+    getParagraphIndexForTime,
+    goToParagraph,
+    hasSyncData,
+    progress.positionSeconds,
+  ]);
+
+  useEffect(() => {
+    if (!hasSyncData) {
+      progressRestoredRef.current = true;
+    }
+  }, [hasSyncData]);
 
   // Sync audio position when user navigates pages
   useEffect(() => {
@@ -346,6 +388,30 @@ export default function PublicReader() {
 
   // Calculate audio progress percentage
   const audioProgress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  // Persist playback progress (throttled)
+  useEffect(() => {
+    if (!hasAudio) return;
+    if (!currentChapter) return;
+    if (!progressRestoredRef.current && progress.positionSeconds > 0) return;
+
+    const now = Date.now();
+    const timeDelta = Math.abs(currentTime - lastSavedRef.current.time);
+    const timeSinceSave = now - lastSavedRef.current.at;
+
+    if (timeDelta < 3 && timeSinceSave < 10000) return;
+
+    lastSavedRef.current = { time: currentTime, at: now };
+    saveProgress(chapterIndex, currentTime);
+  }, [chapterIndex, currentChapter, currentTime, hasAudio, saveProgress]);
+
+  // Save progress immediately when playback stops
+  useEffect(() => {
+    if (isPlaying) return;
+    if (!hasAudio || !currentChapter) return;
+    if (!progressRestoredRef.current && progress.positionSeconds > 0) return;
+    saveProgress(chapterIndex, currentTime);
+  }, [chapterIndex, currentChapter, currentTime, hasAudio, isPlaying, saveProgress]);
 
   // Check if book is in library
   const bookInLibrary = id ? isInLibrary(id) : false;

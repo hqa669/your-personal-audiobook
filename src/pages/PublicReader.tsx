@@ -54,6 +54,7 @@ export default function PublicReader() {
   const [suppressAutoSelection, setSuppressAutoSelection] = useState(false);
   const [autoPlayNextChapter, setAutoPlayNextChapter] = useState(false);
   const [isTimeScrubSelection, setIsTimeScrubSelection] = useState(false);
+  const [isPageNavSelection, setIsPageNavSelection] = useState(false);
 
   const { removeFromLibrary, isInLibrary } = usePublicBooks();
   
@@ -71,6 +72,7 @@ export default function PublicReader() {
   // Track whether measurements have been taken this page cycle (cut-off waits for this)
   const measurementsDoneRef = useRef(false);
   const [paragraphOverflow, setParagraphOverflow] = useState<boolean[]>([]);
+  const pendingPageSeekRef = useRef(false);
 
   // Measure container on mount and resize
   useEffect(() => {
@@ -313,6 +315,25 @@ export default function PublicReader() {
     }
   }, [audioParagraphIndex, hasSyncData, isPlaying, goToParagraph]);
 
+  // Sync audio position when user navigates pages
+  useEffect(() => {
+    if (!pendingPageSeekRef.current) return;
+    if (!hasAudio || !hasSyncData || pageParagraphs.length === 0) return;
+
+    const targetParagraph = Math.max(0, currentParagraphIndex - currentParagraphOnPage);
+    seekToParagraph(targetParagraph);
+
+    pendingPageSeekRef.current = false;
+  }, [
+    currentPageIndex,
+    currentParagraphIndex,
+    currentParagraphOnPage,
+    pageParagraphs.length,
+    hasAudio,
+    hasSyncData,
+    seekToParagraph,
+  ]);
+
   // Auto-play next chapter after audio ends
   useEffect(() => {
     if (!autoPlayNextChapter) return;
@@ -347,9 +368,12 @@ export default function PublicReader() {
       setPageDirection('next');
       setSuppressAutoSelection(true);
       setIsTimeScrubSelection(false);
+      setIsPageNavSelection(true);
+      pendingPageSeekRef.current = true;
       goToNextPage();
     } else if (hasNextChapter) {
       setPageDirection('next');
+      setIsPageNavSelection(false);
       nextChapter();
     }
   };
@@ -359,9 +383,12 @@ export default function PublicReader() {
       setPageDirection('prev');
       setSuppressAutoSelection(true);
       setIsTimeScrubSelection(false);
+      setIsPageNavSelection(true);
+      pendingPageSeekRef.current = true;
       goToPrevPage();
     } else if (hasPrevChapter) {
       setPageDirection('prev');
+      setIsPageNavSelection(false);
       prevChapter();
     }
   };
@@ -371,6 +398,7 @@ export default function PublicReader() {
     e.stopPropagation();
     setSuppressAutoSelection(false);
     setIsTimeScrubSelection(false);
+    setIsPageNavSelection(false);
 
     const absoluteIndex = pageStartIndex + pageRelativeIndex;
 
@@ -396,6 +424,7 @@ export default function PublicReader() {
     e.stopPropagation();
     setSuppressAutoSelection(false);
     setIsTimeScrubSelection(false);
+    setIsPageNavSelection(false);
 
     const absoluteIndex = pageStartIndex + pageRelativeIndex;
     const nextParagraphIndex = absoluteIndex + 1;
@@ -563,7 +592,10 @@ export default function PublicReader() {
                 {pageParagraphs.map((paragraph, index) => {
                   const isAudioSynced = hasSyncData && isPlaying;
                   const isAutoHighlightEnabled =
-                    !suppressAutoSelection || isAudioSynced || isTimeScrubSelection;
+                    !suppressAutoSelection ||
+                    isAudioSynced ||
+                    isTimeScrubSelection ||
+                    isPageNavSelection;
                   const isCurrentParagraph = isAutoHighlightEnabled && currentParagraphOnPage === index;
                   const isAdvanceParagraph = effectiveAdvanceIndex === index;
                   
@@ -656,6 +688,7 @@ export default function PublicReader() {
 
                       setSuppressAutoSelection(false);
                       setIsTimeScrubSelection(true);
+                      setIsPageNavSelection(false);
                       goToParagraph(targetParagraph);
                     }}
                     max={100}

@@ -78,18 +78,36 @@ export function usePublicBookAudio({
     loadSyncData();
   }, [syncUrl]);
 
+  const getParagraphIndexForTime = useCallback((time: number) => {
+    if (!Array.isArray(syncData) || syncData.length === 0) return null;
+
+    let lastBefore: SyncEntry | null = null;
+
+    for (const entry of syncData) {
+      if (time >= entry.start && time < entry.end) {
+        return entry.paragraph;
+      }
+
+      if (time >= entry.start) {
+        if (!lastBefore || entry.start >= lastBefore.start) {
+          lastBefore = entry;
+        }
+      }
+    }
+
+    if (lastBefore) return lastBefore.paragraph;
+    return syncData[0]?.paragraph ?? null;
+  }, [syncData]);
+
   // Update current paragraph based on time
   useEffect(() => {
     if (!Array.isArray(syncData) || syncData.length === 0) return;
 
-    const paragraph = syncData.find(
-      (entry) => currentTime >= entry.start && currentTime < entry.end
-    );
-
-    if (paragraph !== undefined) {
-      setCurrentParagraphIndex(paragraph.paragraph);
+    const paragraphIndex = getParagraphIndexForTime(currentTime);
+    if (paragraphIndex !== null) {
+      setCurrentParagraphIndex(paragraphIndex);
     }
-  }, [currentTime, syncData]);
+  }, [currentTime, syncData, getParagraphIndexForTime]);
 
   // Initialize audio element
   const initAudio = useCallback(async () => {
@@ -237,5 +255,6 @@ export function usePublicBookAudio({
     seekToParagraph,
     changePlaybackRate,
     skip,
+    getParagraphIndexForTime,
   };
 }

@@ -53,6 +53,7 @@ export default function PublicReader() {
   const [pageDirection, setPageDirection] = useState<'next' | 'prev'>('next');
   const [suppressAutoSelection, setSuppressAutoSelection] = useState(false);
   const [autoPlayNextChapter, setAutoPlayNextChapter] = useState(false);
+  const [isTimeScrubSelection, setIsTimeScrubSelection] = useState(false);
 
   const { removeFromLibrary, isInLibrary } = usePublicBooks();
   
@@ -290,6 +291,7 @@ export default function PublicReader() {
     seekTo,
     seekToParagraph,
     changePlaybackRate,
+    getParagraphIndexForTime,
   } = usePublicBookAudio({
     audioUrl: currentChapterAudio?.audio_url || null,
     syncUrl: currentChapterAudio?.sync_url || null,
@@ -344,6 +346,7 @@ export default function PublicReader() {
     if (hasNextPage) {
       setPageDirection('next');
       setSuppressAutoSelection(true);
+      setIsTimeScrubSelection(false);
       goToNextPage();
     } else if (hasNextChapter) {
       setPageDirection('next');
@@ -355,6 +358,7 @@ export default function PublicReader() {
     if (hasPrevPage) {
       setPageDirection('prev');
       setSuppressAutoSelection(true);
+      setIsTimeScrubSelection(false);
       goToPrevPage();
     } else if (hasPrevChapter) {
       setPageDirection('prev');
@@ -366,6 +370,7 @@ export default function PublicReader() {
   const handleParagraphClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setSuppressAutoSelection(false);
+    setIsTimeScrubSelection(false);
 
     const absoluteIndex = pageStartIndex + pageRelativeIndex;
 
@@ -390,6 +395,7 @@ export default function PublicReader() {
   const handleParagraphDoubleClick = (pageRelativeIndex: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setSuppressAutoSelection(false);
+    setIsTimeScrubSelection(false);
 
     const absoluteIndex = pageStartIndex + pageRelativeIndex;
     const nextParagraphIndex = absoluteIndex + 1;
@@ -556,7 +562,8 @@ export default function PublicReader() {
               >
                 {pageParagraphs.map((paragraph, index) => {
                   const isAudioSynced = hasSyncData && isPlaying;
-                  const isAutoHighlightEnabled = !suppressAutoSelection || isAudioSynced;
+                  const isAutoHighlightEnabled =
+                    !suppressAutoSelection || isAudioSynced || isTimeScrubSelection;
                   const isCurrentParagraph = isAutoHighlightEnabled && currentParagraphOnPage === index;
                   const isAdvanceParagraph = effectiveAdvanceIndex === index;
                   
@@ -638,6 +645,18 @@ export default function PublicReader() {
                     onValueChange={(value) => {
                       const newTime = (value[0] / 100) * duration;
                       seekTo(newTime);
+                    }}
+                    onValueCommit={(value) => {
+                      const newTime = (value[0] / 100) * duration;
+                      seekTo(newTime);
+
+                      if (!hasSyncData) return;
+                      const targetParagraph = getParagraphIndexForTime(newTime);
+                      if (typeof targetParagraph !== 'number') return;
+
+                      setSuppressAutoSelection(false);
+                      setIsTimeScrubSelection(true);
+                      goToParagraph(targetParagraph);
                     }}
                     max={100}
                     step={0.1}

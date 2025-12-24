@@ -555,8 +555,9 @@ export default function PublicReader() {
                 }}
               >
                 {pageParagraphs.map((paragraph, index) => {
-                  const isCurrentParagraph = !suppressAutoSelection && currentParagraphOnPage === index;
                   const isAudioSynced = hasSyncData && isPlaying;
+                  const isAutoHighlightEnabled = !suppressAutoSelection || isAudioSynced;
+                  const isCurrentParagraph = isAutoHighlightEnabled && currentParagraphOnPage === index;
                   const isAdvanceParagraph = effectiveAdvanceIndex === index;
                   
                   const shouldScroll = isCurrentParagraph && paragraphOverflow[index];

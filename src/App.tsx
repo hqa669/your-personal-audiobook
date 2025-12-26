@@ -13,6 +13,7 @@ import Discover from "./pages/Discover";
 import Reader from "./pages/Reader";
 import PublicReader from "./pages/PublicReader";
 import Admin from "./pages/Admin";
+import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,7 +29,8 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
-              <Route 
+              <Route path="/pricing" element={<Pricing />} />
+              <Route
                 path="/library" 
                 element={
                   <ProtectedRoute>

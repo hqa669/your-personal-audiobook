@@ -1,17 +1,45 @@
 import { Link, useLocation } from 'react-router-dom';
-import { User, LogOut, BookOpen, Loader2 } from 'lucide-react';
+import { User, LogOut, BookOpen, Loader2, CreditCard, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/hooks/useSubscription';
 import { toast } from 'sonner';
 
 export function Header() {
   const location = useLocation();
   const { user, isLoading, signOut } = useAuth();
+  const { subscription, openPortal } = useSubscription();
 
   const handleLogout = async () => {
     await signOut();
     toast.success('You have been signed out');
+  };
+
+  const getTierBadge = () => {
+    if (!user || !subscription.tier) return null;
+    
+    const tierConfig = {
+      free: { label: 'Free', className: 'bg-muted text-muted-foreground' },
+      trial: { label: 'Trial', className: 'bg-sage/20 text-sage-dark' },
+      basic: { label: 'Basic', className: 'bg-primary/20 text-primary' },
+      annual: { label: 'Annual', className: 'bg-primary text-primary-foreground' },
+    };
+    
+    const config = tierConfig[subscription.tier];
+    return (
+      <Badge variant="secondary" className={cn('text-xs', config.className)}>
+        {config.label}
+      </Badge>
+    );
   };
 
   return (
@@ -55,15 +83,41 @@ export function Header() {
             <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
           ) : user ? (
             <>
-              <Button variant="ghost" size="icon" asChild>
-                <Link to="/library">
-                  <User className="w-5 h-5" />
-                </Link>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
-                <LogOut className="w-4 h-4" />
-                <span className="hidden md:inline">Log out</span>
-              </Button>
+              {getTierBadge()}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <User className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <Link to="/library" className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4" />
+                      My Library
+                    </Link>
+                  </DropdownMenuItem>
+                  {subscription.tier !== 'free' && (
+                    <DropdownMenuItem onClick={openPortal} className="flex items-center gap-2 cursor-pointer">
+                      <CreditCard className="w-4 h-4" />
+                      Manage Subscription
+                    </DropdownMenuItem>
+                  )}
+                  {subscription.tier === 'free' && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/pricing" className="flex items-center gap-2">
+                        <CreditCard className="w-4 h-4" />
+                        Upgrade Plan
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 cursor-pointer">
+                    <LogOut className="w-4 h-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <Button variant="warm" size="sm" asChild>

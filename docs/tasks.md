@@ -598,6 +598,39 @@ create policy "Users can upload covers"
 
 ## Future (V1/V2)
 
+## Phase 11: Stripe Payments Integration ✅ COMPLETE
+
+### 11.1 Database Setup ✅
+- [x] Add subscription_tier enum (free, trial, basic, annual)
+- [x] Add subscription_status enum (active, canceled, past_due, expired)
+- [x] Add subscription columns to profiles table
+
+### 11.2 Secrets Configuration ✅
+- [x] STRIPE_SECRET_KEY
+- [x] STRIPE_WEBHOOK_SECRET
+- [x] STRIPE_PRICE_BASIC
+- [x] STRIPE_PRICE_ANNUAL
+
+### 11.3 Edge Functions ✅
+- [x] `create-checkout` - Creates Stripe checkout session (14-day trial)
+- [x] `stripe-webhook` - Handles Stripe events (subscription updates)
+- [x] `create-portal-session` - Opens Stripe Customer Portal
+
+### 11.4 Frontend ✅
+- [x] `useSubscription` hook for subscription state
+- [x] Pricing page wired to checkout flow
+- [x] Free plan handled without Stripe
+- [x] PaymentSuccess page
+- [x] PaymentCancel page
+- [x] Header shows subscription tier badge
+- [x] Dropdown menu with "Manage Subscription" link
+
+### 11.5 Pending
+- [ ] Feature gating for audio playback (show upgrade prompt for free users)
+- [ ] Email notifications via Resend
+
+---
+
 ### V1 Features
 - [ ] Resume playback across devices
 - [ ] Email notifications (Resend integration)
@@ -627,3 +660,4 @@ create policy "Users can upload covers"
 | Phase 8: Polish | ⏳ Pending | Ongoing |
 | Phase 9: QA | ⏳ Pending | Final phase |
 | Phase 10: Deploy | ⏳ Pending | Launch |
+| Phase 11: Stripe | ✅ Complete | Subscriptions, checkout, portal |

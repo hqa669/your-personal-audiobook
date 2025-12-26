@@ -151,6 +151,10 @@ export type Database = {
           display_name: string | null
           id: string
           stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_end_date: string | null
+          subscription_status: Database["public"]["Enums"]["subscription_status"]
+          subscription_tier: Database["public"]["Enums"]["subscription_tier"]
           updated_at: string
         }
         Insert: {
@@ -159,6 +163,10 @@ export type Database = {
           display_name?: string | null
           id: string
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_end_date?: string | null
+          subscription_status?: Database["public"]["Enums"]["subscription_status"]
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
           updated_at?: string
         }
         Update: {
@@ -167,6 +175,10 @@ export type Database = {
           display_name?: string | null
           id?: string
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_end_date?: string | null
+          subscription_status?: Database["public"]["Enums"]["subscription_status"]
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
           updated_at?: string
         }
         Relationships: []
@@ -352,6 +364,8 @@ export type Database = {
     Enums: {
       app_role: "admin" | "moderator" | "user"
       book_status: "uploaded" | "processing" | "ready" | "failed"
+      subscription_status: "active" | "canceled" | "past_due" | "expired"
+      subscription_tier: "free" | "trial" | "basic" | "annual"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -481,6 +495,8 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "moderator", "user"],
       book_status: ["uploaded", "processing", "ready", "failed"],
+      subscription_status: ["active", "canceled", "past_due", "expired"],
+      subscription_tier: ["free", "trial", "basic", "annual"],
     },
   },
 } as const

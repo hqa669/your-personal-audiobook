@@ -1,9 +1,11 @@
-import { Check, Headphones, BookOpen, Library, Sparkles } from "lucide-react";
+import { Check, Headphones, BookOpen, Library, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/Header";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const features = [
   { icon: BookOpen, text: "Upload & convert your EPUBs to audio" },
@@ -14,25 +16,28 @@ const features = [
 
 const plans = [
   {
-    name: "Free Trial",
-    description: "Try BookMine risk-free",
+    name: "Free",
+    planId: "free" as const,
+    description: "Explore BookMine",
     price: "FREE",
-    period: "14 days",
+    period: "forever",
     features: [
+      "Access to free public classics",
       "Upload up to 3 books",
-      "AI voice generation (limited)",
-      "Basic playback controls",
-      "Access to free classics",
+      "Basic text reading",
+      "No audio playback",
     ],
-    cta: "Start Free Trial",
+    cta: "Get Started",
     popular: false,
   },
   {
     name: "Basic Plan",
+    planId: "basic" as const,
     description: "For casual listeners",
     price: "$5.99",
     period: "per month",
     features: [
+      "14-day free trial",
       "Unlimited book uploads",
       "Unlimited AI voice generation",
       "Speed controls & auto-scroll",
@@ -40,16 +45,18 @@ const plans = [
       "Full library management",
       "Priority voice processing",
     ],
-    cta: "Get Started",
+    cta: "Start Free Trial",
     popular: false,
   },
   {
     name: "Annual Plan",
+    planId: "annual" as const,
     description: "Best value for book lovers",
     price: "$50",
     period: "per year",
     savings: "Save 30%",
     features: [
+      "14-day free trial",
       "Everything in Basic",
       "Unlimited book uploads",
       "Unlimited AI voice generation",
@@ -59,17 +66,34 @@ const plans = [
       "Priority voice processing",
       "Early access to new features",
     ],
-    cta: "Subscribe Now",
+    cta: "Start Free Trial",
     popular: true,
   },
 ];
 
 const Pricing = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { subscription, isCheckoutLoading, startCheckout } = useSubscription();
 
-  const handleSelectPlan = (planName: string) => {
-    // Navigate to auth for now - Stripe integration can be added later
-    navigate("/auth");
+  const handleSelectPlan = async (planId: "free" | "basic" | "annual") => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+
+    const result = await startCheckout(planId);
+    
+    // For free plan, redirect to library after success
+    if (planId === "free" && result?.success) {
+      navigate("/library");
+    }
+    // For paid plans, Stripe redirect happens in startCheckout
+  };
+
+  const isCurrentPlan = (planId: string) => {
+    if (!user) return false;
+    return subscription.tier === planId;
   };
 
   return (
@@ -119,6 +143,14 @@ const Pricing = () => {
                 </Badge>
               )}
               
+              {isCurrentPlan(plan.planId) && (
+                <Badge 
+                  className="absolute top-4 left-4 bg-sage text-sage-foreground"
+                >
+                  Current Plan
+                </Badge>
+              )}
+              
               <CardHeader className="pb-4">
                 <CardTitle className="font-serif text-2xl">{plan.name}</CardTitle>
                 <CardDescription>{plan.description}</CardDescription>
@@ -156,9 +188,19 @@ const Pricing = () => {
                       : "bg-secondary hover:bg-secondary/90"
                   }`}
                   size="lg"
-                  onClick={() => handleSelectPlan(plan.name)}
+                  onClick={() => handleSelectPlan(plan.planId)}
+                  disabled={isCheckoutLoading || isCurrentPlan(plan.planId)}
                 >
-                  {plan.cta}
+                  {isCheckoutLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : isCurrentPlan(plan.planId) ? (
+                    "Current Plan"
+                  ) : (
+                    plan.cta
+                  )}
                 </Button>
               </CardContent>
             </Card>

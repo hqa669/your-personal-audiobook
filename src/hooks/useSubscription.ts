@@ -99,6 +99,7 @@ export function useSubscription() {
       if (plan === "free") {
         // Free plan updated directly, refresh subscription
         await fetchSubscription();
+        setIsCheckoutLoading(false);
         toast({
           title: "Welcome to BookMine!",
           description: "Your free account is ready.",
@@ -107,22 +108,28 @@ export function useSubscription() {
       }
 
       // For paid plans, redirect to Stripe
-      if (data?.url) {
-        window.location.href = data.url;
-        return { url: data.url };
+      // Check if URL is in the data directly or nested
+      const checkoutUrl = data?.url;
+      
+      if (checkoutUrl) {
+        // Don't reset loading state - we're leaving the page
+        // Use window.open as fallback if location.href fails
+        console.log("Redirecting to Stripe:", checkoutUrl);
+        window.location.href = checkoutUrl;
+        return { url: checkoutUrl };
       }
 
+      setIsCheckoutLoading(false);
       throw new Error("No checkout URL returned");
     } catch (error: any) {
       console.error("Checkout error:", error);
+      setIsCheckoutLoading(false);
       toast({
         title: "Checkout failed",
         description: error.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
       return null;
-    } finally {
-      setIsCheckoutLoading(false);
     }
   };
 

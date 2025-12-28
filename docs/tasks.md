@@ -628,6 +628,7 @@ create policy "Users can upload covers"
 
 ### 11.5 Pending
 - [ ] Feature gating for audio playback (show upgrade prompt for free users)
+- [ ] Trial status display in Library (show days remaining)
 - [ ] Email notifications via Resend
 
 ---

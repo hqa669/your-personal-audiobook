@@ -629,6 +629,7 @@ create policy "Users can upload covers"
 ### 11.5 Feature Gating ✅
 - [x] Feature gating for audio playback (show upgrade prompt for free users)
 - [x] UpgradeModal component with pricing redirect
+- [x] Feature gating for public book audio playback (PublicReader)
 - [ ] Trial status display in Library (show days remaining)
 - [ ] Email notifications via Resend
 

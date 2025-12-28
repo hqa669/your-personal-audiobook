@@ -626,8 +626,9 @@ create policy "Users can upload covers"
 - [x] Header shows subscription tier badge
 - [x] Dropdown menu with "Manage Subscription" link
 
-### 11.5 Pending
-- [ ] Feature gating for audio playback (show upgrade prompt for free users)
+### 11.5 Feature Gating ✅
+- [x] Feature gating for audio playback (show upgrade prompt for free users)
+- [x] UpgradeModal component with pricing redirect
 - [ ] Trial status display in Library (show days remaining)
 - [ ] Email notifications via Resend
 

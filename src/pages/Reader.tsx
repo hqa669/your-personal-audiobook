@@ -27,9 +27,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { DeleteBookDialog } from '@/components/DeleteBookDialog';
+import { UpgradeModal } from '@/components/UpgradeModal';
 import { useBookReader } from '@/hooks/useBookReader';
 import { useChapterAudio } from '@/hooks/useChapterAudio';
 import { useBooks } from '@/hooks/useBooks';
+import { useSubscription } from '@/hooks/useSubscription';
 import { ChapterListSheet } from '@/components/ChapterListSheet';
 import { cn } from '@/lib/utils';
 
@@ -40,9 +42,11 @@ export default function Reader() {
   const [fontSize, setFontSize] = useState(18);
   const [showControls, setShowControls] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const { deleteBook } = useBooks();
+  const { subscription } = useSubscription();
 
   const {
     book,
@@ -348,6 +352,11 @@ export default function Reader() {
                       className="h-12 px-4 rounded-full gap-2"
                       onClick={(e) => {
                         e.stopPropagation();
+                        // Check subscription before generating
+                        if (!subscription.canPlayAudio) {
+                          setShowUpgradeModal(true);
+                          return;
+                        }
                         generateChapterAudio(5);
                       }}
                       disabled={isGenerating}
@@ -449,6 +458,12 @@ export default function Reader() {
         onConfirm={handleDeleteBook}
         bookTitle={book?.title || ''}
         isDeleting={isDeleting}
+      />
+
+      {/* Upgrade Modal for Free Users */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
       />
     </>
   );

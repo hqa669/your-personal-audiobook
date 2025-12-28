@@ -614,6 +614,7 @@ create policy "Users can upload covers"
 ### 11.3 Edge Functions ✅
 - [x] `create-checkout` - Creates Stripe checkout session (14-day trial)
 - [x] `stripe-webhook` - Handles Stripe events (subscription updates)
+- [x] Fix webhook signature verification (use `constructEventAsync`)
 - [x] `create-portal-session` - Opens Stripe Customer Portal
 
 ### 11.4 Frontend ✅

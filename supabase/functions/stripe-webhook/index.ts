@@ -38,10 +38,10 @@ serve(async (req) => {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         console.log("Checkout session completed:", session.id);
-        
+
         const userId = session.metadata?.user_id;
         const plan = session.metadata?.plan;
-        
+
         if (!userId) {
           console.error("No user_id in session metadata");
           break;
@@ -50,7 +50,7 @@ serve(async (req) => {
         // Get subscription details
         const subscriptionId = session.subscription as string;
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-        
+
         const tier = plan === "annual" ? "annual" : "basic";
         const status = subscription.status === "trialing" ? "active" : "active";
         const endDate = new Date(subscription.current_period_end * 1000).toISOString();
@@ -94,7 +94,7 @@ serve(async (req) => {
         // Determine tier based on price
         const priceId = subscription.items.data[0]?.price.id;
         let tier: "trial" | "basic" | "annual" = "basic";
-        
+
         if (subscription.status === "trialing") {
           tier = "trial";
         } else if (priceId === Deno.env.get("STRIPE_PRICE_ANNUAL")) {

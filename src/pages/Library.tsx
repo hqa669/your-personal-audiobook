@@ -198,6 +198,9 @@ export default function Library() {
                 className="pl-10 input-warm"
               />
             </div>
+            <Button variant="outline" onClick={() => navigate('/pricing')}>
+              Upgrade Plan
+            </Button>
             <Button variant="warm" className="gap-2" onClick={() => navigate('/discover')}>
               <Plus className="w-4 h-4" />
               <span className="hidden md:inline">New Book</span>

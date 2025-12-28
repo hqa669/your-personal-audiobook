@@ -38,7 +38,9 @@ import { usePublicBookReader } from '@/hooks/usePublicBookReader';
 import { usePublicBookAudio } from '@/hooks/usePublicBookAudio';
 import { usePublicBooks } from '@/hooks/usePublicBooks';
 import { useDynamicPaginatedReader } from '@/hooks/useDynamicPaginatedReader';
+import { useSubscription } from '@/hooks/useSubscription';
 import { ChapterListSheet } from '@/components/ChapterListSheet';
+import { UpgradeModal } from '@/components/UpgradeModal';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -55,8 +57,10 @@ export default function PublicReader() {
   const [autoPlayNextChapter, setAutoPlayNextChapter] = useState(false);
   const [isTimeScrubSelection, setIsTimeScrubSelection] = useState(false);
   const [isPageNavSelection, setIsPageNavSelection] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const { removeFromLibrary, isInLibrary } = usePublicBooks();
+  const { subscription } = useSubscription();
   
   // Measure container height for dynamic pagination
   const contentContainerRef = useRef<HTMLDivElement>(null);
@@ -818,6 +822,11 @@ export default function PublicReader() {
                       className="w-14 h-14 rounded-full shadow-lg"
                       onClick={(e) => {
                         e.stopPropagation();
+                        // Check subscription before playing
+                        if (!subscription.canPlayAudio) {
+                          setShowUpgradeModal(true);
+                          return;
+                        }
                         togglePlay();
                       }}
                       disabled={isAudioLoading}
@@ -919,6 +928,12 @@ export default function PublicReader() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Upgrade Modal for free users */}
+      <UpgradeModal 
+        isOpen={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)} 
+      />
     </div>
   );
 }

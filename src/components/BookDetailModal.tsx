@@ -67,13 +67,13 @@ export function BookDetailModal({
 
           {/* Modal */}
           <motion.div
-            initial={{ opacity: 0, y: 100, scale: 0.95 }}
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 100, scale: 0.95 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-50 max-w-md mx-auto"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
           >
-            <div className="bg-card rounded-t-3xl md:rounded-3xl p-6 shadow-card border border-border/50">
+            <div className="bg-card rounded-3xl p-6 shadow-card border border-border/50 w-full max-w-md">
               {/* Close button */}
               <button
                 onClick={onClose}

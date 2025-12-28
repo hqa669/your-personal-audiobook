@@ -108,25 +108,32 @@ export function useSubscription() {
       }
 
       // For paid plans, redirect to Stripe
-      // Check if URL is in the data directly or nested
       const checkoutUrl = data?.url;
       
       if (checkoutUrl) {
-        // Don't reset loading state - we're leaving the page
-        // Use window.open as fallback if location.href fails
-        console.log("Redirecting to Stripe:", checkoutUrl);
-        window.location.href = checkoutUrl;
+        // IMPORTANT: Do not call any state setters after this point
+        // The page is about to navigate away - any React state updates 
+        // could cause a re-render that interrupts the navigation
+        
+        // Use setTimeout to ensure the redirect happens after the current
+        // JavaScript execution context completes
+        setTimeout(() => {
+          window.location.assign(checkoutUrl);
+        }, 0);
+        
+        // Return immediately without updating any state
         return { url: checkoutUrl };
       }
 
       setIsCheckoutLoading(false);
-      throw new Error("No checkout URL returned");
-    } catch (error: any) {
+      throw new Error("No checkout URL returned from server");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Something went wrong";
       console.error("Checkout error:", error);
       setIsCheckoutLoading(false);
       toast({
         title: "Checkout failed",
-        description: error.message || "Something went wrong. Please try again.",
+        description: errorMessage + ". Please try again.",
         variant: "destructive",
       });
       return null;

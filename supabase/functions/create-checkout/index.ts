@@ -15,7 +15,12 @@ serve(async (req) => {
 
   try {
     const { plan, successUrl, cancelUrl } = await req.json();
-    console.log("Create checkout request:", { plan, successUrl, cancelUrl });
+    console.log("Create checkout request:", {
+      plan,
+      successUrl,
+      cancelUrl,
+      origin: req.headers.get("origin"),
+    });
 
     // Get the user from the authorization header
     const authHeader = req.headers.get("Authorization");
@@ -142,7 +147,13 @@ serve(async (req) => {
       metadata: { user_id: user.id, plan },
     });
 
-    console.log("Created checkout session:", session.id);
+    console.log("Created checkout session:", {
+      id: session.id,
+      url: session.url,
+      mode: session.mode,
+      success_url: session.success_url,
+      cancel_url: session.cancel_url,
+    });
 
     return new Response(
       JSON.stringify({ url: session.url, sessionId: session.id }),

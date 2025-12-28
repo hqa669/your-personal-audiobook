@@ -86,6 +86,10 @@ export function useSubscription() {
     setIsCheckoutLoading(true);
 
     try {
+      console.log("[checkout] start", {
+        plan,
+        origin: window.location.origin,
+      });
       const { data, error } = await supabase.functions.invoke("create-checkout", {
         body: {
           plan,
@@ -93,6 +97,8 @@ export function useSubscription() {
           cancelUrl: `${window.location.origin}/payment/cancel`,
         },
       });
+
+      console.log("[checkout] response", { data, error });
 
       if (error) throw error;
 
@@ -109,6 +115,8 @@ export function useSubscription() {
 
       // For paid plans, redirect to Stripe
       const checkoutUrl = data?.url;
+
+      console.log("[checkout] checkoutUrl", checkoutUrl);
       
       if (checkoutUrl) {
         // IMPORTANT: Do not call any state setters after this point

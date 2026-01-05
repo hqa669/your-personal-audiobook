@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { User, LogOut, BookOpen, Loader2, CreditCard, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,12 +16,14 @@ import { toast } from 'sonner';
 
 export function Header() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isLoading, signOut } = useAuth();
   const { subscription, openPortal } = useSubscription();
 
   const handleLogout = async () => {
     await signOut();
     toast.success('You have been signed out');
+    navigate('/auth');
   };
 
   const getTierBadge = () => {

@@ -1,16 +1,16 @@
 project_id = "hisqrjhsefbdlhnhzxdk"
 
 [functions.generate-chapter-audio]
-verify_jwt = true
+verify_jwt = false
 
 [functions.poll-audio-jobs]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-checkout]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-portal-session]
-verify_jwt = true
+verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false

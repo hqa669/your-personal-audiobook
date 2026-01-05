@@ -47,17 +47,24 @@ export function useSubscription() {
     if (!user) return;
 
     try {
+      // Use the secure view that excludes sensitive Stripe data
       const { data, error } = await supabase
-        .from("profiles")
+        .from("profiles_safe" as any)
         .select("subscription_tier, subscription_status, subscription_end_date")
         .eq("id", user.id)
         .single();
 
       if (error) throw error;
 
-      const tier = (data?.subscription_tier || "free") as SubscriptionTier;
-      const status = (data?.subscription_status || "active") as SubscriptionStatus;
-      const endDate = data?.subscription_end_date || null;
+      const profileData = data as unknown as {
+        subscription_tier: string | null;
+        subscription_status: string | null;
+        subscription_end_date: string | null;
+      } | null;
+
+      const tier = (profileData?.subscription_tier || "free") as SubscriptionTier;
+      const status = (profileData?.subscription_status || "active") as SubscriptionStatus;
+      const endDate = profileData?.subscription_end_date || null;
       
       // Check if subscription is active
       const isActive = status === "active" && (tier === "trial" || tier === "basic" || tier === "annual");

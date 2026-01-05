@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, LogOut, BookOpen, Loader2, CreditCard, Settings } from 'lucide-react';
+import { User, LogOut, BookOpen, Loader2, CreditCard, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -113,6 +113,12 @@ export function Header() {
                       </Link>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem asChild>
+                    <Link to="/auth?mode=change-password" className="flex items-center gap-2">
+                      <KeyRound className="w-4 h-4" />
+                      Change Password
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 cursor-pointer">
                     <LogOut className="w-4 h-4" />

@@ -7,6 +7,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Map errors to safe client messages - prevents information leakage
+ */
+function getSafeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("authorization") || msg.includes("authenticated")) {
+      return "Authentication required";
+    }
+    if (msg.includes("stripe") || msg.includes("customer")) {
+      return "Unable to access billing portal. Please try again or contact support.";
+    }
+    if (msg.includes("profile") || msg.includes("not found")) {
+      return "No subscription found. Please subscribe first.";
+    }
+  }
+  return "An unexpected error occurred. Please try again later.";
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -77,10 +96,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error in create-portal-session:", error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: getSafeErrorMessage(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

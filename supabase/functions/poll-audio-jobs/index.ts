@@ -14,6 +14,39 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const MAX_JOBS_PER_CALL = 5; // Reduced to prevent timeout
 const FETCH_TIMEOUT_MS = 8000; // 8 second timeout for RunPod API calls
 
+// Input validation
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateInputs(bookId: unknown, chapterIndex: unknown): { bookId: string; chapterIndex: number | undefined } {
+  if (!bookId || typeof bookId !== "string" || !UUID_REGEX.test(bookId)) {
+    throw new Error("Invalid bookId format");
+  }
+  
+  if (chapterIndex !== undefined) {
+    if (typeof chapterIndex !== "number" || chapterIndex < 0 || !Number.isInteger(chapterIndex)) {
+      throw new Error("chapterIndex must be a non-negative integer");
+    }
+  }
+  
+  return { bookId, chapterIndex: chapterIndex as number | undefined };
+}
+
+/**
+ * Map errors to safe client messages - prevents information leakage
+ */
+function getSafeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("invalid bookid")) return "Invalid book identifier";
+    if (msg.includes("chapterindex")) return "Invalid chapter index";
+    if (msg.includes("book not found") || msg.includes("access denied")) return "Book not found or access denied";
+    if (msg.includes("unauthorized") || msg.includes("authorization")) return "Authentication required";
+    if (msg.includes("runpod") || msg.includes("timeout")) return "Audio service temporarily unavailable";
+    if (msg.includes("pending tracks")) return "Failed to retrieve audio status";
+  }
+  return "An unexpected error occurred. Please try again later.";
+}
+
 /**
  * Convert base64 to Uint8Array
  */
@@ -68,10 +101,10 @@ serve(async (req) => {
       throw new Error("RunPod credentials not configured");
     }
 
-    const { bookId, chapterIndex } = await req.json();
-    if (!bookId) {
-      throw new Error("bookId is required");
-    }
+    const rawInput = await req.json();
+    
+    // Validate inputs with proper type checking
+    const { bookId, chapterIndex } = validateInputs(rawInput.bookId, rawInput.chapterIndex);
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -240,10 +273,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
-    console.error("[poll-audio-jobs] Error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("[poll-audio-jobs] Full error:", error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: getSafeErrorMessage(error) }),
       {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

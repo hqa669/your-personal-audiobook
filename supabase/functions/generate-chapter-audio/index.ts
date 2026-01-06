@@ -19,6 +19,44 @@ const FALLBACK_MAX_CHARS = 600;
 const CHARS_PER_TOKEN = 4;
 const MAX_CONCURRENT_JOBS = 5;
 
+// Input validation
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateInputs(bookId: unknown, chapterIndex: unknown, targetDurationMinutes: unknown): { bookId: string; chapterIndex: number; targetDurationMinutes: number } {
+  if (!bookId || typeof bookId !== "string" || !UUID_REGEX.test(bookId)) {
+    throw new Error("Invalid bookId format");
+  }
+  
+  if (chapterIndex === undefined || typeof chapterIndex !== "number" || chapterIndex < 0 || !Number.isInteger(chapterIndex)) {
+    throw new Error("chapterIndex must be a non-negative integer");
+  }
+  
+  const duration = targetDurationMinutes ?? 5;
+  if (typeof duration !== "number" || duration < 1 || duration > 60) {
+    throw new Error("targetDurationMinutes must be between 1 and 60");
+  }
+  
+  return { bookId, chapterIndex, targetDurationMinutes: duration };
+}
+
+/**
+ * Map errors to safe client messages - prevents information leakage
+ */
+function getSafeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("invalid bookid")) return "Invalid book identifier";
+    if (msg.includes("chapterindex")) return "Invalid chapter index";
+    if (msg.includes("targetdurationminutes")) return "Invalid duration parameter";
+    if (msg.includes("book not found") || msg.includes("access denied")) return "Book not found or access denied";
+    if (msg.includes("unauthorized") || msg.includes("authorization")) return "Authentication required";
+    if (msg.includes("epub") || msg.includes("invalid epub")) return "Invalid book file format";
+    if (msg.includes("runpod") || msg.includes("tts")) return "Audio generation service temporarily unavailable";
+    if (msg.includes("chapter") && msg.includes("not found")) return "Chapter not found";
+  }
+  return "An unexpected error occurred. Please try again later.";
+}
+
 /**
  * Estimate spoken duration for text in seconds
  */
@@ -277,10 +315,14 @@ serve(async (req) => {
       throw new Error("RunPod credentials not configured");
     }
 
-    const { bookId, chapterIndex, targetDurationMinutes = 5 } = await req.json();
-    if (!bookId || chapterIndex === undefined) {
-      throw new Error("bookId and chapterIndex are required");
-    }
+    const rawInput = await req.json();
+    
+    // Validate inputs with proper type checking
+    const { bookId, chapterIndex, targetDurationMinutes } = validateInputs(
+      rawInput.bookId,
+      rawInput.chapterIndex,
+      rawInput.targetDurationMinutes
+    );
     
     console.log(`[generate-chapter-audio] Request: book=${bookId}, chapter=${chapterIndex}, target=${targetDurationMinutes}min`);
 
@@ -466,10 +508,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
-    console.error("[generate-chapter-audio] Error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("[generate-chapter-audio] Full error:", error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: getSafeErrorMessage(error) }),
       {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

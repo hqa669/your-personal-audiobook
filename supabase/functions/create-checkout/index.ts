@@ -7,6 +7,60 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Valid plan types
+const VALID_PLANS = ["free", "basic", "annual"] as const;
+type PlanType = typeof VALID_PLANS[number];
+
+function validateInputs(plan: unknown, successUrl: unknown, cancelUrl: unknown): { plan: PlanType; successUrl: string | undefined; cancelUrl: string | undefined } {
+  // Validate plan
+  if (!plan || typeof plan !== "string" || !VALID_PLANS.includes(plan as PlanType)) {
+    throw new Error("Invalid plan type. Must be 'free', 'basic', or 'annual'");
+  }
+  
+  // Validate URLs if provided
+  const validatedSuccessUrl = validateUrl(successUrl, "successUrl");
+  const validatedCancelUrl = validateUrl(cancelUrl, "cancelUrl");
+  
+  return { plan: plan as PlanType, successUrl: validatedSuccessUrl, cancelUrl: validatedCancelUrl };
+}
+
+function validateUrl(url: unknown, fieldName: string): string | undefined {
+  if (url === undefined || url === null || url === "") {
+    return undefined;
+  }
+  
+  if (typeof url !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  
+  try {
+    const parsedUrl = new URL(url);
+    // Only allow https in production (allow http for localhost development)
+    if (parsedUrl.protocol !== "https:" && !parsedUrl.hostname.includes("localhost")) {
+      throw new Error(`${fieldName} must use HTTPS`);
+    }
+    return url;
+  } catch {
+    throw new Error(`Invalid ${fieldName} format`);
+  }
+}
+
+/**
+ * Map errors to safe client messages - prevents information leakage
+ */
+function getSafeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("invalid plan")) return "Invalid subscription plan selected";
+    if (msg.includes("url")) return "Invalid redirect URL provided";
+    if (msg.includes("authorization") || msg.includes("authenticated")) return "Authentication required";
+    if (msg.includes("stripe") || msg.includes("customer") || msg.includes("checkout")) return "Payment processing error. Please try again.";
+    if (msg.includes("price id")) return "Subscription configuration error. Please contact support.";
+    if (msg.includes("profile")) return "Unable to update account. Please try again.";
+  }
+  return "An unexpected error occurred. Please try again later.";
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -14,11 +68,19 @@ serve(async (req) => {
   }
 
   try {
-    const { plan, successUrl, cancelUrl } = await req.json();
+    const rawInput = await req.json();
+    
+    // Validate inputs
+    const { plan, successUrl, cancelUrl } = validateInputs(
+      rawInput.plan,
+      rawInput.successUrl,
+      rawInput.cancelUrl
+    );
+    
     console.log("Create checkout request:", {
       plan,
-      successUrl,
-      cancelUrl,
+      hasSuccessUrl: !!successUrl,
+      hasCancelUrl: !!cancelUrl,
       origin: req.headers.get("origin"),
     });
 
@@ -39,7 +101,7 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
-    console.log("User authenticated:", user.id, user.email);
+    console.log("User authenticated:", user.id);
 
     // Handle FREE plan - no Stripe needed
     if (plan === "free") {
@@ -90,7 +152,7 @@ serve(async (req) => {
       throw new Error(`Price ID not configured for plan: ${plan}`);
     }
 
-    console.log("Using price ID:", priceId);
+    console.log("Using price ID for plan:", plan);
 
     // Check if customer already exists
     const supabaseAdmin = createClient(
@@ -129,7 +191,7 @@ serve(async (req) => {
         .update({ stripe_customer_id: customerId })
         .eq("id", user.id);
 
-      console.log("Created/retrieved Stripe customer:", customerId);
+      console.log("Created/retrieved Stripe customer");
     }
 
     // Create checkout session with 14-day trial
@@ -147,23 +209,16 @@ serve(async (req) => {
       metadata: { user_id: user.id, plan },
     });
 
-    console.log("Created checkout session:", {
-      id: session.id,
-      url: session.url,
-      mode: session.mode,
-      success_url: session.success_url,
-      cancel_url: session.cancel_url,
-    });
+    console.log("Created checkout session:", session.id);
 
     return new Response(
       JSON.stringify({ url: session.url, sessionId: session.id }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error in create-checkout:", error);
+    console.error("Error in create-checkout (full):", error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: getSafeErrorMessage(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

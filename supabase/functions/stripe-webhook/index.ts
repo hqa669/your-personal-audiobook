@@ -13,6 +13,19 @@ const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 );
 
+/**
+ * Map errors to safe client messages - prevents information leakage
+ * Note: Webhooks should return minimal error info to prevent probing
+ */
+function getSafeErrorMessage(error: unknown): string {
+  // For webhooks, we keep responses generic to prevent information disclosure
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("signature")) return "Webhook signature verification failed";
+  }
+  return "Webhook processing error";
+}
+
 serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
   if (!signature) {
@@ -26,9 +39,8 @@ serve(async (req) => {
   try {
     event = await stripe.webhooks.constructEventAsync(body, signature, endpointSecret);
   } catch (err: unknown) {
-    const errMessage = err instanceof Error ? err.message : "Unknown error";
-    console.error("Webhook signature verification failed:", errMessage);
-    return new Response(`Webhook Error: ${errMessage}`, { status: 400 });
+    console.error("Webhook signature verification failed:", err);
+    return new Response(getSafeErrorMessage(err), { status: 400 });
   }
 
   console.log("Received webhook event:", event.type);
@@ -55,7 +67,7 @@ serve(async (req) => {
         const status = subscription.status === "trialing" ? "active" : "active";
         const endDate = new Date(subscription.current_period_end * 1000).toISOString();
 
-        console.log("Updating profile:", { userId, tier, status, endDate, subscriptionId });
+        console.log("Updating profile for user:", userId);
 
         const { error } = await supabaseAdmin
           .from("profiles")
@@ -184,9 +196,8 @@ serve(async (req) => {
         console.log("Unhandled event type:", event.type);
     }
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error processing webhook:", error);
-    return new Response(`Webhook Error: ${errorMessage}`, { status: 500 });
+    console.error("Error processing webhook (full):", error);
+    return new Response(getSafeErrorMessage(error), { status: 500 });
   }
 
   return new Response(JSON.stringify({ received: true }), {
